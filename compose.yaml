@@ -71,6 +71,38 @@ services:
       redis:
         condition: service_healthy
 
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    working_dir: /var/www/html
+    command: composer test:pgsql
+    volumes:
+      - ./backend:/var/www/html
+    environment:
+      <<: *laravel-environment
+      DB_HOST: postgres-test
+      DB_DATABASE: auction_bot_test
+      DB_USERNAME: auction_test
+      DB_PASSWORD: auction_test
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+
+  postgres-test:
+    profiles: ["test"]
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: auction_bot_test
+      POSTGRES_USER: auction_test
+      POSTGRES_PASSWORD: auction_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auction_test -d auction_bot_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   postgres:
     image: postgres:17-alpine
     ports:

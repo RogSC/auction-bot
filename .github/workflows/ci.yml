@@ -14,6 +14,27 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: auction_bot_test
+          POSTGRES_USER: auction_test
+          POSTGRES_PASSWORD: auction_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U auction_test -d auction_bot_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: auction_bot_test
+      DB_USERNAME: auction_test
+      DB_PASSWORD: auction_test
 
     steps:
       - name: Check out repository
@@ -42,8 +63,13 @@ jobs:
           cp .env.example .env
           php artisan key:generate --force
 
-      - name: Validate dependencies, formatting, and tests
-        run: composer check
+      - name: Validate dependencies and formatting
+        run: |
+          composer validate --strict
+          composer lint
+
+      - name: Run tests on PostgreSQL
+        run: composer test:pgsql
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

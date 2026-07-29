@@ -53,6 +53,10 @@
             "@php artisan config:clear --ansi @no_additional_args",
             "@php artisan test"
         ],
+        "test:pgsql": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php vendor/bin/pest --configuration=phpunit.pgsql.xml"
+        ],
         "check": [
             "@composer validate --strict",
             "@composer lint",
