@@ -11,10 +11,13 @@ use App\Modules\Auction\Domain\Enums\AuctionStatus;
 use App\Modules\Auction\Domain\Enums\BidStatus;
 use App\Modules\Auction\Domain\Events\AuctionExtended;
 use App\Modules\Auction\Domain\Events\BidPlaced;
+use App\Modules\Participant\Application\TermsVersion;
 use Illuminate\Support\Facades\DB;
 
 final readonly class PlaceNextBid
 {
+    public function __construct(private TermsVersion $termsVersion) {}
+
     public function handle(int $auctionId, int $userId, int $viewVersion): Bid
     {
         return DB::transaction(function () use ($auctionId, $userId, $viewVersion): Bid {
@@ -26,7 +29,7 @@ final readonly class PlaceNextBid
             if ($auction->version !== $viewVersion) {
                 throw new AuctionOperationException('Auction view is stale.');
             }
-            if ($user->accepted_terms_at === null) {
+            if ($user->accepted_terms_at === null || $user->accepted_terms_version !== $this->termsVersion->current()) {
                 throw new AuctionOperationException('Terms must be accepted before bidding.');
             }
             $amount = $auction->current_price_cents + $auction->bid_increment_cents;
