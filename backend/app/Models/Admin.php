@@ -14,6 +14,14 @@ class Admin extends Authenticatable implements FilamentUser
     use Notifiable;
 
     /** @var list<string> */
+    protected $fillable = [
+        'email',
+        'name',
+        'password',
+        'is_active',
+    ];
+
+    /** @var list<string> */
     protected $hidden = [
         'password',
         'remember_token',
