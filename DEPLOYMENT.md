@@ -33,7 +33,7 @@ chmod 600 .env.production
 
 Fill every `CHANGE_TO_...` value. Set `DOMAIN` to the DNS name and `CERTBOT_EMAIL` to a monitored mailbox. `APP_URL` must use the same HTTPS domain.
 
-Generate an application key after the first container start; do not generate it locally.
+Generate an application key after the first container start; do not generate it locally. The production environment file is injected into containers and is not mounted as `/var/www/html/.env`, so generate the value with `--show` and paste it into `.env.production` on the host.
 
 For external database backups, create an S3-compatible bucket and credentials. Set `RESTIC_REPOSITORY`, `RESTIC_PASSWORD`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. The bucket must not be on this VDS.
 
@@ -41,16 +41,27 @@ For external database backups, create an S3-compatible bucket and credentials. S
 
 ```bash
 docker compose --env-file .env.production -f compose.prod.yml up -d --build
-docker compose --env-file .env.production -f compose.prod.yml exec -T app php artisan key:generate --force
+```
+
+Generate the key and add the displayed value to `APP_KEY` in `/srv/auction-bot/.env.production`:
+
+```bash
+docker compose --env-file .env.production -f compose.prod.yml exec -T app php artisan key:generate --show
+nano .env.production
+docker compose --env-file .env.production -f compose.prod.yml up -d --force-recreate app horizon scheduler
+```
+
+Then run migrations and cache application metadata:
+
+```bash
 docker compose --env-file .env.production -f compose.prod.yml exec -T app php artisan migrate --force
-docker compose --env-file .env.production -f compose.prod.yml exec -T app php artisan package:discover --ansi
 docker compose --env-file .env.production -f compose.prod.yml exec -T app php artisan config:cache
 docker compose --env-file .env.production -f compose.prod.yml exec -T app php artisan event:cache
 docker compose --env-file .env.production -f compose.prod.yml exec -T app php artisan view:cache
 docker compose --env-file .env.production -f compose.prod.yml restart app horizon scheduler
 ```
 
-Nginx starts with a temporary one-day self-signed certificate only until Certbot obtains the real certificate. The HTTP ACME challenge is available immediately. Verify that DNS points to the server and that ports 80 and 443 are public.
+Nginx starts with a temporary one-day self-signed certificate only until Certbot obtains the real certificate. The temporary certificate is stored separately from Let's Encrypt data. The HTTP ACME challenge is available immediately. Verify that DNS points to the server and that ports 80 and 443 are public.
 
 Check certificate issuance and containers:
 
