@@ -1,0 +1,134 @@
+name: auction-bot
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.prod
+    env_file: ${APP_ENV_FILE:-.env.production}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - app-storage:/var/www/html/storage
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile.prod
+    env_file: ${APP_ENV_FILE:-.env.production}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+
+  certbot:
+    image: certbot/certbot:v4.1.1
+    env_file: ${APP_ENV_FILE:-.env.production}
+    restart: unless-stopped
+    depends_on:
+      - nginx
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    entrypoint: /bin/sh
+    command:
+      - -ec
+      - |
+        while :; do
+          certbot certonly --webroot --webroot-path /var/www/certbot \
+            --domain "$${DOMAIN}" --email "$${CERTBOT_EMAIL}" \
+            --agree-tos --non-interactive --keep-until-expiring \
+            --deploy-hook 'touch /etc/letsencrypt/.reload' || true
+          sleep 12h
+        done
+
+  horizon:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.prod
+    command: php artisan horizon
+    env_file: ${APP_ENV_FILE:-.env.production}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - app-storage:/var/www/html/storage
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.prod
+    command: php artisan schedule:work
+    env_file: ${APP_ENV_FILE:-.env.production}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - app-storage:/var/www/html/storage
+
+  postgres:
+    image: postgres:17-alpine
+    env_file: ${APP_ENV_FILE:-.env.production}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  backup:
+    build:
+      context: .
+      dockerfile: docker/backup/Dockerfile
+    env_file: ${APP_ENV_FILE:-.env.production}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${DB_DATABASE}
+      PGUSER: ${DB_USERNAME}
+      PGPASSWORD: ${DB_PASSWORD}
+    command: /usr/local/bin/backup-postgres.sh
+
+volumes:
+  app-storage:
+  certbot-webroot:
+  letsencrypt:
+  postgres-data:
+  redis-data:

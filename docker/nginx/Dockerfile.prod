@@ -1,0 +1,11 @@
+FROM nginx:1.27-alpine
+
+RUN apk add --no-cache gettext openssl
+
+COPY backend/public /var/www/html/public
+COPY docker/nginx/production.conf.template /etc/nginx/templates/production.conf.template
+COPY docker/nginx/production-entrypoint.sh /usr/local/bin/production-entrypoint
+
+RUN chmod +x /usr/local/bin/production-entrypoint
+
+ENTRYPOINT ["/usr/local/bin/production-entrypoint"]

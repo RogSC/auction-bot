@@ -7,3 +7,5 @@ backend/vendor
 backend/storage/*.key
 backend/storage/framework
 backend/storage/logs
+backend/bootstrap/cache/*.php
+backups

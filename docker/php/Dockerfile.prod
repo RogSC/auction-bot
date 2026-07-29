@@ -1,0 +1,50 @@
+FROM php:8.4-fpm-bookworm AS base
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        libicu-dev \
+        libpq-dev \
+        libzip-dev \
+        unzip \
+    && docker-php-ext-install -j"$(nproc)" \
+        intl \
+        opcache \
+        pcntl \
+        pdo_pgsql \
+        zip \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+FROM base AS vendor
+
+COPY backend/composer.json backend/composer.lock ./
+RUN composer install \
+    --no-dev \
+    --no-interaction \
+    --no-progress \
+    --prefer-dist \
+    --optimize-autoloader \
+    --no-scripts
+
+COPY backend/ ./
+RUN composer dump-autoload \
+    --no-dev \
+    --classmap-authoritative \
+    --no-interaction \
+    --no-scripts
+
+RUN mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
+    && php artisan package:discover --ansi
+
+FROM base
+
+COPY docker/php/php.production.ini /usr/local/etc/php/conf.d/99-auction-bot.ini
+COPY --from=vendor --chown=www-data:www-data /var/www/html /var/www/html
+
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs \
+    && chown -R www-data:www-data storage bootstrap/cache
