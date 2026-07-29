@@ -8,6 +8,7 @@ use App\Models\Auction;
 use App\Models\Bid;
 use App\Modules\Auction\Domain\Enums\AuctionStatus;
 use App\Modules\Auction\Domain\Enums\BidStatus;
+use App\Modules\Auction\Domain\Events\AuctionFinished;
 use Illuminate\Support\Facades\DB;
 
 final readonly class FinalizeAuction
@@ -24,14 +25,19 @@ final readonly class FinalizeAuction
             $bid = Bid::query()->where('auction_id', $auction->id)->whereIn('status', [BidStatus::Active, BidStatus::Outbid])->orderByDesc('amount_cents')->orderByDesc('id')->first();
             if (! $bid) {
                 $auction->update(['status' => AuctionStatus::NoSale]);
+                $auction->refresh();
+                event(new AuctionFinished($auction));
 
-                return $auction->refresh();
+                return $auction;
             }
             Bid::query()->where('auction_id', $auction->id)->whereIn('status', [BidStatus::Active, BidStatus::Outbid])->update(['status' => BidStatus::Outbid]);
             $bid->update(['status' => BidStatus::Winning]);
             $auction->update(['status' => AuctionStatus::AwaitingPayment, 'auction_winner_id' => $bid->user_id, 'winning_bid_id' => $bid->id, 'payment_due_at' => now()->addHours($this->settings->integer('auction.payment_window_hours'))]);
 
-            return $auction->refresh();
+            $auction->refresh();
+            event(new AuctionFinished($auction));
+
+            return $auction;
         });
     }
 }

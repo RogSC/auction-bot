@@ -9,6 +9,8 @@ use App\Models\Bid;
 use App\Models\User;
 use App\Modules\Auction\Domain\Enums\AuctionStatus;
 use App\Modules\Auction\Domain\Enums\BidStatus;
+use App\Modules\Auction\Domain\Events\AuctionExtended;
+use App\Modules\Auction\Domain\Events\BidPlaced;
 use Illuminate\Support\Facades\DB;
 
 final readonly class PlaceNextBid
@@ -30,11 +32,17 @@ final readonly class PlaceNextBid
             $amount = $auction->current_price_cents + $auction->bid_increment_cents;
             Bid::query()->where('auction_id', $auction->id)->where('status', BidStatus::Active)->update(['status' => BidStatus::Outbid]);
             $bid = Bid::query()->create(['auction_id' => $auction->id, 'user_id' => $user->id, 'amount_cents' => $amount, 'status' => BidStatus::Active, 'placed_at' => now()]);
-            $endsAt = $auction->ends_at;
+            $previousEndsAt = $auction->ends_at;
+            $endsAt = $previousEndsAt;
             if ($endsAt->diffInSeconds(now(), false) <= $auction->extension_threshold_seconds) {
                 $endsAt = now()->addSeconds($auction->extension_duration_seconds);
             }
             $auction->update(['current_price_cents' => $amount, 'current_leader_id' => $user->id, 'ends_at' => $endsAt, 'version' => $auction->version + 1]);
+            $auction->refresh();
+            event(new BidPlaced($auction, $bid));
+            if (! $endsAt->equalTo($previousEndsAt)) {
+                event(new AuctionExtended($auction, $previousEndsAt));
+            }
 
             return $bid;
         });

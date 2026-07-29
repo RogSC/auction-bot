@@ -6,6 +6,7 @@ namespace App\Modules\Auction\Application;
 
 use App\Models\Auction;
 use App\Modules\Auction\Domain\Enums\AuctionStatus;
+use App\Modules\Auction\Domain\Events\PaymentConfirmed;
 use Illuminate\Support\Facades\DB;
 
 final readonly class ConfirmPayment
@@ -28,6 +29,7 @@ final readonly class ConfirmPayment
             }
             $auction->status = AuctionStatus::Paid;
             $auction->save();
+            event(new PaymentConfirmed($auction));
 
             return $auction;
         });
