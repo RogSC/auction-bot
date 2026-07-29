@@ -1,0 +1,9 @@
+.git
+.agents
+.codex
+backend/.env
+backend/node_modules
+backend/vendor
+backend/storage/*.key
+backend/storage/framework
+backend/storage/logs
