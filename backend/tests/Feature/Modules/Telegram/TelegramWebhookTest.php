@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Auction;
 use App\Modules\Telegram\Application\TelegramMessageRenderer;
+use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
@@ -39,6 +40,18 @@ it('renders an auction without Telegram identifiers or usernames', function (): 
     expect($text)->toContain('BIDDER-000123')
         ->not->toContain('telegram_id')
         ->not->toContain('username');
+});
+
+it('records outgoing messages and suppresses duplicate idempotency keys', function (): void {
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 42]])]);
+    $client = app(TelegramBotApiClient::class);
+
+    $client->sendMessage(900_002, 'Queued notification', idempotencyKey: 'notification-unique-key');
+    $client->sendMessage(900_002, 'Queued notification', idempotencyKey: 'notification-unique-key');
+
+    expect(DB::table('telegram_messages')->where('idempotency_key', 'notification-unique-key')->count())->toBe(1)
+        ->and(DB::table('telegram_messages')->where('idempotency_key', 'notification-unique-key')->value('telegram_message_id'))->toBe(42);
+    Http::assertSentCount(1);
 });
 
 it('rejects webhook requests without the configured Telegram secret token', function (): void {

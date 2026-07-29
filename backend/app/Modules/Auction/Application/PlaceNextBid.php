@@ -33,6 +33,7 @@ final readonly class PlaceNextBid
                 throw new AuctionOperationException('Terms must be accepted before bidding.');
             }
             $amount = $auction->current_price_cents + $auction->bid_increment_cents;
+            $outbidUserId = $auction->current_leader_id;
             Bid::query()->where('auction_id', $auction->id)->where('status', BidStatus::Active)->update(['status' => BidStatus::Outbid]);
             $bid = Bid::query()->create(['auction_id' => $auction->id, 'user_id' => $user->id, 'amount_cents' => $amount, 'status' => BidStatus::Active, 'placed_at' => now()]);
             $previousEndsAt = $auction->ends_at;
@@ -42,7 +43,7 @@ final readonly class PlaceNextBid
             }
             $auction->update(['current_price_cents' => $amount, 'current_leader_id' => $user->id, 'ends_at' => $endsAt, 'version' => $auction->version + 1]);
             $auction->refresh();
-            event(new BidPlaced($auction, $bid));
+            event(new BidPlaced($auction, $bid, $outbidUserId));
             if (! $endsAt->equalTo($previousEndsAt)) {
                 event(new AuctionExtended($auction, $previousEndsAt));
             }

@@ -10,5 +10,5 @@ use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
 final readonly class BidPlaced implements ShouldDispatchAfterCommit
 {
-    public function __construct(public Auction $auction, public Bid $bid) {}
+    public function __construct(public Auction $auction, public Bid $bid, public ?int $outbidUserId) {}
 }

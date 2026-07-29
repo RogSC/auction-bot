@@ -9,6 +9,7 @@ use App\Models\Bid;
 use App\Modules\Auction\Domain\Enums\AuctionStatus;
 use App\Modules\Auction\Domain\Enums\BidStatus;
 use App\Modules\Auction\Domain\Events\AuctionFinished;
+use App\Modules\Auction\Domain\Events\PaymentRequested;
 use Illuminate\Support\Facades\DB;
 
 final readonly class FinalizeAuction
@@ -36,6 +37,7 @@ final readonly class FinalizeAuction
 
             $auction->refresh();
             event(new AuctionFinished($auction));
+            event(new PaymentRequested($auction));
 
             return $auction;
         });

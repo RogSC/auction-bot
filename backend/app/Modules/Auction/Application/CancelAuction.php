@@ -6,6 +6,7 @@ namespace App\Modules\Auction\Application;
 
 use App\Models\Auction;
 use App\Modules\Auction\Domain\Enums\AuctionStatus;
+use App\Modules\Auction\Domain\Events\AuctionCancelled;
 use Illuminate\Support\Facades\DB;
 
 final readonly class CancelAuction
@@ -25,8 +26,10 @@ final readonly class CancelAuction
                 'cancelled_by_admin_id' => $adminId,
                 'cancellation_reason' => $reason,
             ]);
+            $auction->refresh();
+            event(new AuctionCancelled($auction));
 
-            return $auction->refresh();
+            return $auction;
         });
     }
 }

@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('horizon:snapshot')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('auctions:finalize-expired')->everyMinute()->withoutOverlapping();
+Schedule::command('queue:monitor-failed')->everyFiveMinutes()->withoutOverlapping();

@@ -20,6 +20,12 @@ final class FinalizeAuctionJob implements ShouldQueue
 
     public int $tries = 3;
 
+    /** @return array<int, int> */
+    public function backoff(): array
+    {
+        return [5, 30, 120];
+    }
+
     public function __construct(public readonly int $auctionId) {}
 
     public function handle(FinalizeAuction $finalizeAuction): void

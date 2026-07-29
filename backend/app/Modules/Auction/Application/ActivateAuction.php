@@ -7,6 +7,7 @@ namespace App\Modules\Auction\Application;
 use App\Models\Auction;
 use App\Modules\Auction\Application\Jobs\FinalizeAuctionJob;
 use App\Modules\Auction\Domain\Enums\AuctionStatus;
+use App\Modules\Auction\Domain\Events\AuctionStarted;
 use Illuminate\Support\Facades\DB;
 
 final readonly class ActivateAuction
@@ -26,8 +27,10 @@ final readonly class ActivateAuction
 
             $auction->update(['status' => AuctionStatus::Active]);
             FinalizeAuctionJob::dispatch($auction->id)->delay($auction->ends_at);
+            $auction->refresh();
+            event(new AuctionStarted($auction));
 
-            return $auction->refresh();
+            return $auction;
         });
     }
 }

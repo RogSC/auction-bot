@@ -13,7 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withCommands([
+        __DIR__.'/../app/Modules/Admin/Application/Commands',
         __DIR__.'/../app/Modules/Auction/Application/Commands',
+        __DIR__.'/../app/Modules/Notification/Application/Commands',
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         //

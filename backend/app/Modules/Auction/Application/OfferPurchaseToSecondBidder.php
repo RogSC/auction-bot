@@ -10,6 +10,7 @@ use App\Models\PurchaseOffer;
 use App\Modules\Auction\Domain\Enums\AuctionStatus;
 use App\Modules\Auction\Domain\Enums\BidStatus;
 use App\Modules\Auction\Domain\Enums\PurchaseOfferStatus;
+use App\Modules\Auction\Domain\Events\PurchaseOffered;
 use Illuminate\Support\Facades\DB;
 
 final readonly class OfferPurchaseToSecondBidder
@@ -33,6 +34,7 @@ final readonly class OfferPurchaseToSecondBidder
             $expiresAt = now()->addHours($this->settings->integer('auction.payment_window_hours'));
             $offer = PurchaseOffer::query()->create(['auction_id' => $auction->id, 'bid_id' => $bid->id, 'offered_to_user_id' => $bid->user_id, 'amount_cents' => $bid->amount_cents, 'status' => PurchaseOfferStatus::Pending, 'offered_at' => now(), 'expires_at' => $expiresAt, 'created_by_admin_id' => $adminId]);
             $auction->update(['buyer_id' => $bid->user_id, 'accepted_bid_id' => $bid->id, 'payment_due_at' => $expiresAt]);
+            event(new PurchaseOffered($offer));
 
             return $offer;
         });
