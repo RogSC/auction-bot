@@ -10,4 +10,11 @@ Artisan::command('inspire', function () {
 
 Schedule::command('horizon:snapshot')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('auctions:finalize-expired')->everyMinute()->withoutOverlapping();
+if (config('release.demo_mode')) {
+    Schedule::command('releases:activate-scheduled')->everySecond()->withoutOverlapping();
+    Schedule::command('releases:dispatch-due-events')->everySecond()->withoutOverlapping();
+} else {
+    Schedule::command('releases:activate-scheduled')->everyMinute()->withoutOverlapping();
+    Schedule::command('releases:dispatch-due-events')->everyMinute()->withoutOverlapping();
+}
 Schedule::command('queue:monitor-failed')->everyFiveMinutes()->withoutOverlapping();

@@ -5,12 +5,17 @@ declare(strict_types=1);
 namespace App\Modules\Telegram\Application\Handlers;
 
 use App\Models\User;
+use App\Modules\Release\Application\SubscribeToCurrentRelease;
 use App\Modules\Telegram\Application\TelegramMessageRenderer;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
 
 final readonly class StartCommandHandler
 {
-    public function __construct(private TelegramBotApiClient $client, private TelegramMessageRenderer $renderer) {}
+    public function __construct(
+        private TelegramBotApiClient $client,
+        private TelegramMessageRenderer $renderer,
+        private SubscribeToCurrentRelease $subscribeToCurrentRelease,
+    ) {}
 
     /** @param array<string, mixed> $message */
     public function handle(array $message): void
@@ -29,6 +34,14 @@ final readonly class StartCommandHandler
         ]);
         if ($user->bidder_code === null) {
             $user->update(['bidder_code' => sprintf('BIDDER-%06d', $user->id)]);
+        }
+
+        $subscription = $this->subscribeToCurrentRelease->handle($user);
+
+        if ($subscription !== null) {
+            $this->client->sendMessage($chatId, $this->renderer->releaseWelcome(), disableNotification: true);
+
+            return;
         }
 
         $this->client->sendMessage($chatId, $this->renderer->welcome(), $this->renderer->mainMenu());

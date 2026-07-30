@@ -13,6 +13,11 @@ final readonly class TelegramMessageRenderer
         return 'Welcome to the digital art auction bot.';
     }
 
+    public function releaseWelcome(): string
+    {
+        return 'Вы подписаны. Новые работы будут приходить сюда автоматически.';
+    }
+
     /** @return array<string, array<int, array<int, array<string, string>>> > */
     public function mainMenu(): array
     {
