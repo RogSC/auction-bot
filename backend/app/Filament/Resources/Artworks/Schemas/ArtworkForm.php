@@ -17,7 +17,6 @@ class ArtworkForm
                 Textarea::make('description')->required()->columnSpanFull(),
                 FileUpload::make('preview_path')->disk('local')->directory('artwork-previews')->image()->required(),
                 TextInput::make('preview_disk')->default('local')->required()->hidden(),
-                TextInput::make('created_by_admin_id')->numeric()->required(),
             ]);
     }
 }

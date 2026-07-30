@@ -25,6 +25,7 @@ Clone the repository to `/srv/auction-bot`, then create the real environment fil
 ```bash
 sudo mkdir -p /srv/auction-bot
 sudo chown deploy:deploy /srv/auction-bot
+sudo -iu deploy
 git clone <REPOSITORY_URL> /srv/auction-bot
 cd /srv/auction-bot
 cp .env.production.example .env.production
