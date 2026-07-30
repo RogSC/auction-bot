@@ -16,7 +16,6 @@ class ArtworkForm
                 TextInput::make('title')->required()->maxLength(255),
                 Textarea::make('description')->required()->columnSpanFull(),
                 FileUpload::make('preview_path')->disk('local')->directory('artwork-previews')->image()->required(),
-                TextInput::make('preview_disk')->default('local')->required()->hidden(),
             ]);
     }
 }

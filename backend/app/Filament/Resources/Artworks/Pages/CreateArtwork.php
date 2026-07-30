@@ -23,6 +23,7 @@ class CreateArtwork extends CreateRecord
         }
 
         $data['created_by_admin_id'] = (int) $adminId;
+        $data['preview_disk'] = 'local';
 
         return $data;
     }
