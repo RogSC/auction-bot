@@ -6,8 +6,11 @@ use App\Filament\Resources\Auctions\AuctionResource;
 use App\Models\Auction;
 use App\Modules\Auction\Application\AuctionOperationException;
 use App\Modules\Auction\Application\AuctionRules;
+use App\Modules\Auction\Application\ScheduleAuction;
 use App\Modules\Auction\Application\UpdateAuctionRules;
+use App\Modules\Auction\Domain\Enums\AuctionStatus;
 use Carbon\CarbonImmutable;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
@@ -20,6 +23,19 @@ class EditAuction extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('schedule')
+                ->label('Schedule auction')
+                ->requiresConfirmation()
+                ->visible(fn (): bool => $this->getRecord()->status === AuctionStatus::Draft)
+                ->action(function (): mixed {
+                    try {
+                        $auction = app(ScheduleAuction::class)->handle($this->getRecord()->id);
+                    } catch (AuctionOperationException $exception) {
+                        throw ValidationException::withMessages(['start_price_cents' => $exception->getMessage()]);
+                    }
+
+                    return $this->redirect(AuctionResource::getUrl('edit', ['record' => $auction]));
+                }),
             DeleteAction::make(),
         ];
     }
