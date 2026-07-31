@@ -37,8 +37,7 @@ final readonly class BidCallbackHandler
         }
 
         if ($parts[0] === 'auction_refresh') {
-            $leaderCode = User::query()->find($auction->current_leader_id)?->bidder_code;
-            $this->refreshAuctionMessage($callbackQuery, $chatId, $auction, $leaderCode);
+            $this->refreshAuctionMessage($callbackQuery, $chatId, $auction, $this->leaderLabel($auction, $user));
 
             return true;
         }
@@ -52,8 +51,7 @@ final readonly class BidCallbackHandler
         }
 
         $auction->refresh();
-        $leaderCode = User::query()->find($auction->current_leader_id)?->bidder_code;
-        $this->client->sendMessage($chatId, $this->renderer->auction($auction, $leaderCode), $this->renderer->auctionKeyboard($auction));
+        $this->refreshAuctionMessage($callbackQuery, $chatId, $auction, $this->leaderLabel($auction, $user));
 
         return true;
     }
@@ -66,8 +64,6 @@ final readonly class BidCallbackHandler
         $keyboard = $this->renderer->auctionKeyboard($auction);
 
         if (! is_int($messageId)) {
-            $this->client->sendMessage($chatId, $this->renderer->auction($auction, $leaderCode), $keyboard);
-
             return;
         }
 
@@ -84,7 +80,17 @@ final readonly class BidCallbackHandler
                 $this->client->editMessageText($chatId, $messageId, $this->renderer->auction($auction, $leaderCode), $keyboard);
             }
         } catch (\Throwable) {
-            $this->client->sendMessage($chatId, $this->renderer->auction($auction, $leaderCode), $keyboard);
+            // The original Telegram message may have been deleted. Do not create a
+            // separate status message: a bid must only update its lot card.
         }
+    }
+
+    private function leaderLabel(Auction $auction, User $viewer): ?string
+    {
+        if ($auction->current_leader_id === $viewer->id) {
+            return 'Вы';
+        }
+
+        return User::query()->find($auction->current_leader_id)?->bidder_code;
     }
 }

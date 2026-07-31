@@ -77,5 +77,8 @@ it('updates the already sent lot card after a bid', function (): void {
     Http::assertSent(fn ($request): bool => $request->url() === 'https://api.telegram.org/bottest-bot-token/editMessageCaption'
         && $request['message_id'] === 501
         && str_contains($request['caption'], '12000'));
-    expect(DB::table('telegram_messages')->where('telegram_message_id', 501)->value('payload'))->toContain('12000');
+    $payload = DB::table('telegram_messages')->where('telegram_message_id', 501)->value('payload');
+    expect($payload)
+        ->toContain('12000')
+        ->and(substr_count((string) $payload, 'Текущая цена:'))->toBe(1);
 });

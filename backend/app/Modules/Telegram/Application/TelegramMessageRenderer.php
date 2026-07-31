@@ -41,14 +41,14 @@ final readonly class TelegramMessageRenderer
     public function refreshedAuctionCaption(string $currentCaption, Auction $auction, ?string $leaderCode): string
     {
         $status = $this->auction($auction, $leaderCode);
-        $firstStatusLine = strtok($status, "\n");
-        $statusPosition = $firstStatusLine === false ? false : strrpos($currentCaption, "\n{$firstStatusLine}");
+        $lotCaption = preg_replace('/(?:\R|^)Текущая цена:.*\z/us', '', $currentCaption);
+        $lotCaption = rtrim($lotCaption ?? $currentCaption);
 
-        if ($statusPosition === false) {
-            return rtrim($currentCaption)."\n\n{$status}";
+        if ($lotCaption === '') {
+            return $status;
         }
 
-        return rtrim(substr($currentCaption, 0, $statusPosition))."\n\n{$status}";
+        return "{$lotCaption}\n\n{$status}";
     }
 
     /** @return array<string, array<int, array<int, array<string, string>>> > */

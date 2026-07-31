@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Telegram\Infrastructure;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Support\Facades\DB;
@@ -180,24 +181,42 @@ final readonly class TelegramBotApiClient
     /** @param array<string, mixed> $parameters */
     private function prepareOutbound(int $chatId, string $type, array $parameters, string $key): bool
     {
-        $message = DB::table('telegram_messages')->where('idempotency_key', $key)->first();
-        if ($message !== null && $message->sent_at !== null) {
-            return false;
+        $now = now();
+        $inserted = DB::table('telegram_messages')->insertOrIgnore([
+            'chat_id' => $chatId,
+            'direction' => 'outbound',
+            'type' => $type,
+            'idempotency_key' => $key,
+            'payload' => json_encode($parameters, JSON_THROW_ON_ERROR),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        if ($inserted === 1) {
+            return true;
         }
 
-        if ($message === null) {
-            DB::table('telegram_messages')->insert([
-                'chat_id' => $chatId,
-                'direction' => 'outbound',
-                'type' => $type,
-                'idempotency_key' => $key,
+        return DB::transaction(function () use ($key, $parameters): bool {
+            $message = DB::table('telegram_messages')
+                ->where('idempotency_key', $key)
+                ->lockForUpdate()
+                ->first();
+            if ($message === null || $message->sent_at !== null) {
+                return false;
+            }
+
+            if ($message->failed_at === null && CarbonImmutable::parse($message->updated_at)->greaterThan(now()->subMinutes(5))) {
+                return false;
+            }
+
+            DB::table('telegram_messages')->where('idempotency_key', $key)->update([
                 'payload' => json_encode($parameters, JSON_THROW_ON_ERROR),
-                'created_at' => now(),
+                'failed_at' => null,
+                'failure_reason' => null,
                 'updated_at' => now(),
             ]);
-        }
 
-        return true;
+            return true;
+        });
     }
 
     /** @param array<string, mixed> $parameters */
