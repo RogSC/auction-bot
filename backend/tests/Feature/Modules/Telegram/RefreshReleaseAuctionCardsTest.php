@@ -80,5 +80,6 @@ it('updates the already sent lot card after a bid', function (): void {
     $payload = DB::table('telegram_messages')->where('telegram_message_id', 501)->value('payload');
     expect($payload)
         ->toContain('12000')
+        ->toContain('Текущий лидер: Вы')
         ->and(substr_count((string) $payload, 'Текущая цена:'))->toBe(1);
 });
