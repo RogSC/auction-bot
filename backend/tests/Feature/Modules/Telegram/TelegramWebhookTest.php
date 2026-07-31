@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Models\Auction;
+use App\Models\Release;
+use App\Modules\Release\Domain\Enums\ReleaseStatus;
 use App\Modules\Telegram\Application\TelegramMessageRenderer;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
 use Illuminate\Support\Facades\DB;
@@ -27,10 +29,11 @@ it('routes the start command, creates a participant, and calls the Telegram clie
 
     expect(DB::table('users')->where('telegram_id', 800_001)->value('bidder_code'))->toMatch('/^BIDDER-\d{6}$/');
     Http::assertSent(fn ($request): bool => $request->url() === 'https://api.telegram.org/bottest-bot-token/sendMessage'
-        && $request['reply_markup']['inline_keyboard'][0][0]['callback_data'] === 'menu:active'
-        && $request['reply_markup']['inline_keyboard'][1][0]['callback_data'] === 'menu:bids'
-        && $request['reply_markup']['inline_keyboard'][2][0]['callback_data'] === 'menu:completed'
-        && $request['reply_markup']['inline_keyboard'][3][0]['callback_data'] === 'menu:rules');
+        && $request['reply_markup']['inline_keyboard'][0][0]['callback_data'] === 'menu:subscribe'
+        && $request['reply_markup']['inline_keyboard'][1][0]['callback_data'] === 'menu:active'
+        && $request['reply_markup']['inline_keyboard'][2][0]['callback_data'] === 'menu:bids'
+        && $request['reply_markup']['inline_keyboard'][3][0]['callback_data'] === 'menu:completed'
+        && $request['reply_markup']['inline_keyboard'][4][0]['callback_data'] === 'menu:rules');
 });
 
 it('renders an auction without Telegram identifiers or usernames', function (): void {
@@ -40,6 +43,38 @@ it('renders an auction without Telegram identifiers or usernames', function (): 
     expect($text)->toContain('BIDDER-000123')
         ->not->toContain('telegram_id')
         ->not->toContain('username');
+});
+
+it('subscribes a participant to the current release from the persistent menu', function (): void {
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 43]])]);
+    $adminId = DB::table('admins')->insertGetId([
+        'name' => 'Admin',
+        'email' => 'menu-subscribe@example.test',
+        'password' => 'password',
+    ]);
+    $release = Release::query()->create([
+        'title' => 'Current release',
+        'status' => ReleaseStatus::Running,
+        'starts_at' => now()->subMinute(),
+        'ends_at' => now()->addHour(),
+        'created_by_admin_id' => $adminId,
+    ]);
+
+    $this->postJson('/api/telegram/webhook', [
+        'update_id' => 700_004,
+        'callback_query' => [
+            'id' => 'callback-subscribe',
+            'data' => 'menu:subscribe',
+            'from' => ['id' => 800_002, 'first_name' => 'Grace'],
+            'message' => ['chat' => ['id' => 900_002]],
+        ],
+    ], ['X-Telegram-Bot-Api-Secret-Token' => 'test-webhook-secret'])->assertOk();
+
+    $userId = DB::table('users')->where('telegram_id', 800_002)->value('id');
+    expect(DB::table('release_subscriptions')
+        ->where('release_id', $release->id)
+        ->where('user_id', $userId)
+        ->exists())->toBeTrue();
 });
 
 it('records outgoing messages and suppresses duplicate idempotency keys', function (): void {

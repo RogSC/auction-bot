@@ -39,7 +39,7 @@ final readonly class StartCommandHandler
         $subscription = $this->subscribeToCurrentRelease->handle($user);
 
         if ($subscription !== null) {
-            $this->client->sendMessage($chatId, $this->renderer->releaseWelcome(), disableNotification: true);
+            $this->client->sendMessage($chatId, $this->renderer->releaseWelcome(), $this->renderer->mainMenu(), disableNotification: true);
 
             return;
         }
