@@ -139,7 +139,7 @@ it('sends an explanation quietly as a reply to that user artwork message', funct
     expect($user->id)->toBeGreaterThan(0);
 });
 
-it('sends a catalog with numbered lots and artwork details', function (): void {
+it('sends a catalog placeholder and preserves the auction-start message', function (): void {
     Storage::fake('local');
     configureTelegramForReleaseDeliveryTest();
     Http::fake(['https://telegram.test/*' => Http::response(['ok' => true, 'result' => ['message_id' => 701]])]);
@@ -151,7 +151,7 @@ it('sends a catalog with numbered lots and artwork details', function (): void {
         'description' => 'Digital landscape.',
     ]);
     $release->releaseArtworks()->create(['artwork_id' => $artwork->id, 'position' => 1]);
-    Auction::query()->create([
+    $auction = Auction::query()->create([
         'artwork_id' => $artwork->id,
         'status' => 'scheduled',
         'start_price_cents' => 12_500,
@@ -162,6 +162,7 @@ it('sends a catalog with numbered lots and artwork details', function (): void {
         'extension_threshold_seconds' => 120,
         'extension_duration_seconds' => 120,
     ]);
+    $release->releaseArtworks()->where('artwork_id', $artwork->id)->update(['auction_id' => $auction->id]);
     createSubscriberForDeliveryTest($release, now()->subHour());
     $event = ReleaseEvent::query()->create([
         'release_id' => $release->id,
@@ -173,13 +174,8 @@ it('sends a catalog with numbered lots and artwork details', function (): void {
     app(DeliverReleaseEvent::class)->handle($event->id);
 
     Http::assertSent(function (Request $request): bool {
-        return str_ends_with($request->url(), '/sendPhoto')
-            && str_contains($request['caption'], 'Лот №1')
-            && str_contains($request['caption'], 'Автор: Ada Artist')
-            && str_contains($request['caption'], 'Название: Untitled')
-            && str_contains($request['caption'], 'Год: 2026')
-            && str_contains($request['caption'], 'Digital landscape.')
-            && str_contains($request['caption'], 'Стартовая цена: $125.00');
+        return str_ends_with($request->url(), '/sendMessage')
+            && $request['text'] === 'Каталог работ:';
     });
     Http::assertSent(function (Request $request): bool {
         return str_ends_with($request->url(), '/sendMessage')

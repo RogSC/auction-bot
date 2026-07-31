@@ -32,7 +32,7 @@ final class PlaceNextBid
             $bid = Bid::query()->create(['auction_id' => $auction->id, 'user_id' => $user->id, 'amount_cents' => $amount, 'status' => BidStatus::Active, 'placed_at' => now()]);
             $previousEndsAt = $auction->ends_at;
             $endsAt = $previousEndsAt;
-            if ($endsAt->diffInSeconds(now(), false) <= $auction->extension_threshold_seconds) {
+            if (now()->diffInSeconds($endsAt, false) <= $auction->extension_threshold_seconds) {
                 $endsAt = now()->addSeconds($auction->extension_duration_seconds);
             }
             $auction->update(['current_price_cents' => $amount, 'current_leader_id' => $user->id, 'ends_at' => $endsAt, 'version' => $auction->version + 1]);

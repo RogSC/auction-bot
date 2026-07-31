@@ -80,3 +80,14 @@ it('extends an auction and emits domain events when a bid arrives near the end',
     Event::assertDispatched(BidPlaced::class);
     Event::assertDispatched(AuctionExtended::class);
 });
+
+it('does not extend an auction when more than the anti-sniping threshold remains', function (): void {
+    Event::fake([AuctionExtended::class]);
+    $auction = createActiveAuctionForBidTest(3_600);
+    $previousEndsAt = $auction->ends_at;
+
+    app(PlaceNextBid::class)->handle($auction->id, createBidderForBidTest(), 1);
+
+    expect($auction->fresh()->ends_at->equalTo($previousEndsAt))->toBeTrue();
+    Event::assertNotDispatched(AuctionExtended::class);
+});

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Notification\Application\Listeners;
 
 use App\Models\Bid;
+use App\Models\ReleaseArtwork;
 use App\Models\User;
 use App\Modules\Auction\Domain\Events\AuctionFinished;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
@@ -18,6 +19,13 @@ final readonly class SendAuctionFinishedNotification implements ShouldQueue, Sho
     public function handle(AuctionFinished $event): void
     {
         $userIds = Bid::query()->where('auction_id', $event->auction->id)->distinct()->pluck('user_id');
-        User::query()->whereIn('id', $userIds)->whereNotNull('telegram_id')->each(fn (User $user) => $this->client->sendMessage($user->telegram_id, "Аукцион #{$event->auction->id} завершён."));
+        $lotNumber = ReleaseArtwork::query()->where('auction_id', $event->auction->id)->value('position');
+        $message = is_numeric($lotNumber)
+            ? 'Аукцион на лот №'.(int) $lotNumber.' завершён.'
+            : "Аукцион #{$event->auction->id} завершён.";
+
+        User::query()->whereIn('id', $userIds)->whereNotNull('telegram_id')->each(
+            fn (User $user) => $this->client->sendMessage($user->telegram_id, $message),
+        );
     }
 }

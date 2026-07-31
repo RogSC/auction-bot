@@ -18,7 +18,6 @@ use App\Modules\Release\Domain\Enums\ReleaseStatus;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use RuntimeException;
 
 final readonly class DeliverReleaseEvent
@@ -210,20 +209,13 @@ final readonly class DeliverReleaseEvent
                 continue;
             }
 
-            $firstMessageId = null;
-            foreach ($catalogItems as $item) {
-                $messageId = $this->telegram->sendPhoto(
-                    $subscription->user->telegram_id,
-                    $item['artwork']->preview_disk,
-                    $item['artwork']->preview_path,
-                    $this->catalogCaption($item['lotNumber'], $item['artwork'], $item['auction']),
-                    "release-catalog-{$event->id}-user-{$subscription->user_id}-artwork-{$item['artwork']->id}",
-                );
-                if ($messageId === null) {
-                    throw new RuntimeException('Telegram did not return a message ID for the catalog artwork delivery.');
-                }
-
-                $firstMessageId ??= $messageId;
+            $firstMessageId = $this->telegram->sendMessage(
+                $subscription->user->telegram_id,
+                'Каталог работ:',
+                idempotencyKey: "release-catalog-header-{$event->id}-user-{$subscription->user_id}",
+            );
+            if ($firstMessageId === null) {
+                throw new RuntimeException('Telegram did not return a message ID for the catalog delivery.');
             }
 
             $startMessage = $this->catalogStartMessage($catalogItems);
@@ -233,7 +225,6 @@ final readonly class DeliverReleaseEvent
                     $startMessage,
                     idempotencyKey: "release-catalog-start-{$event->id}-user-{$subscription->user_id}",
                 );
-                $firstMessageId ??= $messageId;
             }
 
             $delivery->update([
@@ -319,19 +310,6 @@ final readonly class DeliverReleaseEvent
         })->filter()->values();
     }
 
-    private function catalogCaption(int $lotNumber, Artwork $artwork, Auction $auction): string
-    {
-        return sprintf(
-            "Лот №%d\nАвтор: %s\nНазвание: %s\nГод: %s\n%s\nСтартовая цена: %s",
-            $lotNumber,
-            $artwork->artist_name ?? 'Автор не указан',
-            $artwork->title,
-            $artwork->creation_year ?? 'Не указан',
-            Str::limit($artwork->description, 700),
-            $this->formatUsd($auction->start_price_cents),
-        );
-    }
-
     /** @param Collection<int, array{lotNumber: int, artwork: Artwork, auction: Auction}> $catalogItems */
     private function catalogStartMessage(Collection $catalogItems): ?string
     {
@@ -361,10 +339,5 @@ final readonly class DeliverReleaseEvent
         return \Carbon\CarbonImmutable::instance($startsAt)
             ->setTimezone(config('app.timezone'))
             ->format('d.m.Y H:i');
-    }
-
-    private function formatUsd(int $cents): string
-    {
-        return '$'.intdiv($cents, 100).'.'.str_pad((string) ($cents % 100), 2, '0', STR_PAD_LEFT);
     }
 }

@@ -56,7 +56,7 @@ final readonly class SendReleaseLotsOnAuctionStart
         foreach ($users as $user) {
             $this->client->sendMessage(
                 $user->telegram_id,
-                'Аукцион начался. Все лоты доступны для ставок.',
+                $this->auctionStartedMessage($release),
                 idempotencyKey: "release-auction-started-{$release->id}-user-{$user->id}",
             );
 
@@ -90,5 +90,16 @@ final readonly class SendReleaseLotsOnAuctionStart
             Str::limit($artwork->description, 700),
             $this->renderer->auction($auction, null),
         );
+    }
+
+    private function auctionStartedMessage(Release $release): string
+    {
+        $message = 'Аукцион начался. Все лоты доступны для ставок.';
+
+        if ($release->ends_at !== null) {
+            $message .= "\nОкончание аукциона: {$release->ends_at->format('d.m.Y H:i')}";
+        }
+
+        return $message;
     }
 }

@@ -35,7 +35,7 @@ final readonly class TelegramMessageRenderer
     {
         $leader = $leaderCode === null ? 'Ставок пока нет' : $leaderCode;
 
-        return "Текущая цена: {$auction->current_price_cents} центов\nТекущий лидер: {$leader}\nОкончание: {$auction->ends_at->format('d.m.Y H:i')}";
+        return "Текущая цена: {$auction->current_price_cents} центов\nТекущий лидер: {$leader}";
     }
 
     public function refreshedAuctionCaption(string $currentCaption, Auction $auction, ?string $leaderCode): string

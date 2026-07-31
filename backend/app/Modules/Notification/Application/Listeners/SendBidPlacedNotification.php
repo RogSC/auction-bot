@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notification\Application\Listeners;
 
+use App\Models\ReleaseArtwork;
 use App\Models\User;
 use App\Modules\Auction\Domain\Events\BidPlaced;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
@@ -18,7 +19,12 @@ final readonly class SendBidPlacedNotification implements ShouldQueue, ShouldQue
     {
         $outbidUser = $event->outbidUserId === null ? null : User::query()->find($event->outbidUserId);
         if ($outbidUser?->telegram_id !== null) {
-            $this->client->sendMessage($outbidUser->telegram_id, "Вашу ставку на аукционе #{$event->auction->id} перебили.", idempotencyKey: "bid-outbid-{$event->bid->id}-{$outbidUser->id}");
+            $lotNumber = ReleaseArtwork::query()->where('auction_id', $event->auction->id)->value('position');
+            $message = is_numeric($lotNumber)
+                ? 'Аукцион на лот №'.(int) $lotNumber.': вашу ставку перебили.'
+                : "Вашу ставку на аукционе #{$event->auction->id} перебили.";
+
+            $this->client->sendMessage($outbidUser->telegram_id, $message, idempotencyKey: "bid-outbid-{$event->bid->id}-{$outbidUser->id}");
         }
     }
 }
