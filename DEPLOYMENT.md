@@ -81,6 +81,8 @@ docker compose --env-file .env.production -f compose.prod.yml exec app php artis
 
 Open `https://DOMAIN/admin` and sign in.
 
+The Horizon dashboard is available at `https://DOMAIN/horizon`. It is protected by the same active administrator session as the admin panel: sign in at `/admin` first, then open `/horizon` in the same browser.
+
 ## 5. Telegram webhook
 
 Set the Telegram webhook URL to:
