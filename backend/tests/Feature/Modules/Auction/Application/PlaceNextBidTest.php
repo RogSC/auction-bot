@@ -70,6 +70,7 @@ it('rejects a bid from a stale auction view', function (): void {
 })->throws(AuctionOperationException::class, 'Данные аукциона устарели. Обновите экран и попробуйте снова.');
 
 it('extends an auction and emits domain events when a bid arrives near the end', function (): void {
+    config()->set('auction.anti_sniping_enabled', true);
     Event::fake([BidPlaced::class, AuctionExtended::class]);
     $auction = createActiveAuctionForBidTest(60);
     $previousEndsAt = $auction->ends_at;
@@ -82,8 +83,21 @@ it('extends an auction and emits domain events when a bid arrives near the end',
 });
 
 it('does not extend an auction when more than the anti-sniping threshold remains', function (): void {
+    config()->set('auction.anti_sniping_enabled', true);
     Event::fake([AuctionExtended::class]);
     $auction = createActiveAuctionForBidTest(3_600);
+    $previousEndsAt = $auction->ends_at;
+
+    app(PlaceNextBid::class)->handle($auction->id, createBidderForBidTest(), 1);
+
+    expect($auction->fresh()->ends_at->equalTo($previousEndsAt))->toBeTrue();
+    Event::assertNotDispatched(AuctionExtended::class);
+});
+
+it('does not extend an auction during the presentation even near its end', function (): void {
+    config()->set('auction.anti_sniping_enabled', false);
+    Event::fake([AuctionExtended::class]);
+    $auction = createActiveAuctionForBidTest(60);
     $previousEndsAt = $auction->ends_at;
 
     app(PlaceNextBid::class)->handle($auction->id, createBidderForBidTest(), 1);

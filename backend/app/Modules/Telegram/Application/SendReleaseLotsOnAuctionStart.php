@@ -92,13 +92,17 @@ final readonly class SendReleaseLotsOnAuctionStart
         $thresholdMinutes = max(1, (int) ceil($auction->extension_threshold_seconds / 60));
         $extensionMinutes = max(1, (int) ceil($auction->extension_duration_seconds / 60));
 
+        $antiSnipingRule = config('auction.anti_sniping_enabled')
+            ? "\n\nСтавка, поданная в последние {$thresholdMinutes} мин., продлевает торги по этому лоту на {$extensionMinutes} мин."
+            : '';
+
         return "Ставки принимаются до {$endsAt->format('d.m.Y H:i')}. Закрытие общее: торги по всем лотам останавливаются в одну минуту.\n\n"
             ."Как участвовать:\n"
             ."— откройте лот в каталоге и нажмите «Сделать ставку»\n"
             ."— шаг ставки указан в карточке лота\n"
             ."— текущая цена и число ставок видны всем участникам\n\n"
             ."Если вашу ставку перебьют, бот пришлёт уведомление с номером лота и новой ценой — ответную ставку можно сделать прямо оттуда.\n\n"
-            ."Ставка — обязательство. Отозвать её нельзя.\n\n"
-            ."Ставка, поданная в последние {$thresholdMinutes} мин., продлевает торги по этому лоту на {$extensionMinutes} мин.";
+            ."Ставка — обязательство. Отозвать её нельзя."
+            .$antiSnipingRule;
     }
 }

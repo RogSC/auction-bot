@@ -20,11 +20,11 @@ final readonly class SendBidPlacedNotification implements ShouldQueue, ShouldQue
     {
         $outbidUser = $event->outbidUserId === null ? null : User::query()->find($event->outbidUserId);
         if ($outbidUser?->telegram_id !== null) {
-            $lotNumber = ReleaseArtwork::query()->where('auction_id', $event->auction->id)->value('position');
-            $message = is_numeric($lotNumber)
-                ? 'Аукцион на лот №'.(int) $lotNumber.': вашу ставку перебили.'
-                : "Вашу ставку на аукционе #{$event->auction->id} перебили.";
-            $message .= "\nНовая цена: {$event->auction->current_price_cents} центов.";
+            $releaseArtwork = ReleaseArtwork::query()->with('artwork')->where('auction_id', $event->auction->id)->first();
+            $lotNumber = $releaseArtwork?->position ?? $event->auction->id;
+            $title = $releaseArtwork?->artwork?->title ?? 'Работа';
+            $artist = $releaseArtwork?->artwork?->artist_name ?? 'Автор не указан';
+            $message = "Вашу ставку перебили\nЛот №{$lotNumber}. {$title}, {$artist}";
 
             $this->client->sendMessage(
                 $outbidUser->telegram_id,
