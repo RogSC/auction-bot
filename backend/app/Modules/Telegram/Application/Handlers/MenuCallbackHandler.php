@@ -28,7 +28,7 @@ final readonly class MenuCallbackHandler
             'menu:active' => $this->activeAuctionsText(),
             'menu:bids' => $this->myBidsText((int) ($callbackQuery['from']['id'] ?? 0)),
             'menu:completed' => $this->completedAuctionsText(),
-            'menu:rules' => 'Bids use a fixed increment. The highest valid bidder wins. Payment is confirmed manually.',
+            'menu:rules' => 'Ставка всегда повышается на фиксированный шаг. Побеждает участник с наивысшей действительной ставкой. Оплата подтверждается администратором вручную.',
             default => null,
         };
         if ($text === null) {
@@ -44,25 +44,47 @@ final readonly class MenuCallbackHandler
     {
         $auctions = $this->visibleAuctions->handle();
 
-        return $auctions->isEmpty() ? 'No active auctions right now.' : $auctions->map(fn (Auction $auction): string => "#{$auction->id}: {$auction->current_price_cents} cents")->join("\n");
+        return $auctions->isEmpty() ? 'Сейчас нет активных аукционов.' : $auctions->map(fn (Auction $auction): string => "Аукцион #{$auction->id}: {$auction->current_price_cents} центов")->join("\n");
     }
 
     private function myBidsText(int $telegramId): string
     {
         $userId = User::query()->where('telegram_id', $telegramId)->value('id');
         if ($userId === null) {
-            return 'You have not placed any bids yet.';
+            return 'У вас пока нет ставок.';
         }
 
         $bids = Bid::query()->where('user_id', $userId)->latest('placed_at')->get();
 
-        return $bids->isEmpty() ? 'You have not placed any bids yet.' : $bids->map(fn (Bid $bid): string => "Auction #{$bid->auction_id}: {$bid->amount_cents} cents ({$bid->status->value})")->join("\n");
+        return $bids->isEmpty() ? 'У вас пока нет ставок.' : $bids->map(fn (Bid $bid): string => "Аукцион #{$bid->auction_id}: {$bid->amount_cents} центов ({$this->bidStatusLabel($bid->status->value)})")->join("\n");
     }
 
     private function completedAuctionsText(): string
     {
         $auctions = Auction::query()->whereIn('status', [AuctionStatus::Completed, AuctionStatus::NoSale])->latest('ends_at')->get();
 
-        return $auctions->isEmpty() ? 'No completed auctions yet.' : $auctions->map(fn (Auction $auction): string => "#{$auction->id}: {$auction->current_price_cents} cents ({$auction->status->value})")->join("\n");
+        return $auctions->isEmpty() ? 'Завершённых аукционов пока нет.' : $auctions->map(fn (Auction $auction): string => "Аукцион #{$auction->id}: {$auction->current_price_cents} центов ({$this->auctionStatusLabel($auction->status->value)})")->join("\n");
+    }
+
+    private function bidStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'active' => 'активна',
+            'outbid' => 'перебита',
+            'cancelled' => 'отменена',
+            'winning' => 'победившая',
+            'disqualified' => 'дисквалифицирована',
+            default => $status,
+        };
+    }
+
+    private function auctionStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'completed' => 'завершён',
+            'no_sale' => 'не продан',
+            'cancelled' => 'отменён',
+            default => $status,
+        };
     }
 }

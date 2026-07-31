@@ -21,9 +21,9 @@ final readonly class SendLifecycleNotification implements ShouldQueue, ShouldQue
     {
         match (true) {
             $event instanceof AuctionStarted => null,
-            $event instanceof PaymentRequested => $this->sendToUser($event->auction->auction_winner_id, 'Payment is requested for your winning bid.'),
+            $event instanceof PaymentRequested => $this->sendToUser($event->auction->auction_winner_id, 'Пожалуйста, подтвердите оплату выигравшей ставки.'),
             $event instanceof AuctionCancelled => null,
-            $event instanceof PurchaseOffered => $this->sendToUser($event->offer->offered_to_user_id, "You may purchase this artwork for {$event->offer->amount_cents} cents."),
+            $event instanceof PurchaseOffered => $this->sendToUser($event->offer->offered_to_user_id, "Вам предложена покупка этой работы за {$event->offer->amount_cents} центов."),
         };
     }
 

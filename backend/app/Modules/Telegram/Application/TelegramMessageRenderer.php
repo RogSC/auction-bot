@@ -10,7 +10,7 @@ final readonly class TelegramMessageRenderer
 {
     public function welcome(): string
     {
-        return 'Welcome to the digital art auction bot.';
+        return 'Добро пожаловать в бот цифровых арт-аукционов.';
     }
 
     public function releaseWelcome(): string
@@ -23,27 +23,27 @@ final readonly class TelegramMessageRenderer
     {
         return [
             'inline_keyboard' => [
-                [['text' => 'Active auctions', 'callback_data' => 'menu:active']],
-                [['text' => 'My bids', 'callback_data' => 'menu:bids']],
-                [['text' => 'Completed auctions', 'callback_data' => 'menu:completed']],
-                [['text' => 'Rules', 'callback_data' => 'menu:rules']],
+                [['text' => 'Активные аукционы', 'callback_data' => 'menu:active']],
+                [['text' => 'Мои ставки', 'callback_data' => 'menu:bids']],
+                [['text' => 'Завершённые аукционы', 'callback_data' => 'menu:completed']],
+                [['text' => 'Правила', 'callback_data' => 'menu:rules']],
             ],
         ];
     }
 
     public function auction(Auction $auction, ?string $leaderCode): string
     {
-        $leader = $leaderCode === null ? 'No bids yet' : $leaderCode;
+        $leader = $leaderCode === null ? 'Ставок пока нет' : $leaderCode;
 
-        return "Current price: {$auction->current_price_cents} cents\nCurrent leader: {$leader}\nEnds at: {$auction->ends_at->toIso8601String()}";
+        return "Текущая цена: {$auction->current_price_cents} центов\nТекущий лидер: {$leader}\nОкончание: {$auction->ends_at->format('d.m.Y H:i')}";
     }
 
     /** @return array<string, array<int, array<int, array<string, string>>> > */
     public function auctionKeyboard(Auction $auction): array
     {
         return ['inline_keyboard' => [
-            [['text' => 'Place next bid', 'callback_data' => "bid_prepare:{$auction->id}:{$auction->version}"]],
-            [['text' => 'Refresh', 'callback_data' => "auction_refresh:{$auction->id}:{$auction->version}"]],
+            [['text' => 'Сделать следующую ставку', 'callback_data' => "bid_prepare:{$auction->id}:{$auction->version}"]],
+            [['text' => 'Обновить', 'callback_data' => "auction_refresh:{$auction->id}:{$auction->version}"]],
         ]];
     }
 
@@ -51,25 +51,25 @@ final readonly class TelegramMessageRenderer
     {
         $amount = $auction->current_price_cents + $auction->bid_increment_cents;
 
-        return "Confirm your bid of {$amount} cents.";
+        return "Подтвердите ставку: {$amount} центов.";
     }
 
     public function terms(): string
     {
-        return 'Before placing your first bid, please accept the Terms of Service.';
+        return 'Перед первой ставкой необходимо принять правила.';
     }
 
     /** @return array<string, array<int, array<int, array<string, string>>> > */
     public function termsKeyboard(string $version): array
     {
-        return ['inline_keyboard' => [[['text' => 'I accept', 'callback_data' => "terms_accept:{$version}"]]]];
+        return ['inline_keyboard' => [[['text' => 'Принимаю правила', 'callback_data' => "terms_accept:{$version}"]]]];
     }
 
     /** @return array<string, array<int, array<int, array<string, string>>> > */
     public function bidConfirmationKeyboard(Auction $auction): array
     {
         return ['inline_keyboard' => [
-            [['text' => 'Confirm bid', 'callback_data' => "bid_confirm:{$auction->id}:{$auction->version}"]],
+            [['text' => 'Подтвердить ставку', 'callback_data' => "bid_confirm:{$auction->id}:{$auction->version}"]],
         ]];
     }
 }

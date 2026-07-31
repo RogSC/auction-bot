@@ -55,17 +55,19 @@ it('calculates the next bid from the locked auction state and outbids the previo
         ->and(DB::table('bids')->find($previousBidId)->status)->toBe('outbid');
 });
 
-it('rejects a bid when terms have not been accepted', function (): void {
+it('allows a bid during the presentation without terms acceptance', function (): void {
     $auction = createActiveAuctionForBidTest();
 
-    app(PlaceNextBid::class)->handle($auction->id, createBidderForBidTest(false), 1);
-})->throws(AuctionOperationException::class, 'Terms must be accepted before bidding.');
+    $bid = app(PlaceNextBid::class)->handle($auction->id, createBidderForBidTest(false), 1);
+
+    expect($bid->amount_cents)->toBe(11_000);
+});
 
 it('rejects a bid from a stale auction view', function (): void {
     $auction = createActiveAuctionForBidTest();
 
     app(PlaceNextBid::class)->handle($auction->id, createBidderForBidTest(), 0);
-})->throws(AuctionOperationException::class, 'Auction view is stale.');
+})->throws(AuctionOperationException::class, 'Данные аукциона устарели. Обновите экран и попробуйте снова.');
 
 it('extends an auction and emits domain events when a bid arrives near the end', function (): void {
     Event::fake([BidPlaced::class, AuctionExtended::class]);

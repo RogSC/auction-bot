@@ -17,6 +17,10 @@ final readonly class SyncAuctionReplyKeyboardListener implements ShouldQueue, Sh
 
     public function handle(AuctionStarted|AuctionFinished|AuctionCancelled $event): void
     {
-        $this->syncAuctionReplyKeyboard->handle(class_basename($event).'-'.$event->auction->id);
+        $message = $event instanceof AuctionStarted
+            ? "Аукцион #{$event->auction->id} начался. Можно делать ставки."
+            : null;
+
+        $this->syncAuctionReplyKeyboard->handle(class_basename($event).'-'.$event->auction->id, $message);
     }
 }

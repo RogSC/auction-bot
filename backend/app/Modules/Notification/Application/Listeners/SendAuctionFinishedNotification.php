@@ -18,6 +18,6 @@ final readonly class SendAuctionFinishedNotification implements ShouldQueue, Sho
     public function handle(AuctionFinished $event): void
     {
         $userIds = Bid::query()->where('auction_id', $event->auction->id)->distinct()->pluck('user_id');
-        User::query()->whereIn('id', $userIds)->whereNotNull('telegram_id')->each(fn (User $user) => $this->client->sendMessage($user->telegram_id, "Auction #{$event->auction->id} has finished."));
+        User::query()->whereIn('id', $userIds)->whereNotNull('telegram_id')->each(fn (User $user) => $this->client->sendMessage($user->telegram_id, "Аукцион #{$event->auction->id} завершён."));
     }
 }

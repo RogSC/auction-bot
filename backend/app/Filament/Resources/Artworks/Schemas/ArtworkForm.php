@@ -15,6 +15,7 @@ class ArtworkForm
             ->components([
                 TextInput::make('title')->required()->maxLength(255),
                 TextInput::make('artist_name')->label('Artist')->maxLength(255),
+                TextInput::make('creation_year')->label('Year')->numeric()->minValue(1000)->maxValue(9999),
                 Textarea::make('description')->required()->columnSpanFull(),
                 Textarea::make('ownership_terms')->label('Ownership terms')->columnSpanFull(),
                 FileUpload::make('preview_path')->disk('local')->directory('artwork-previews')->image()->required(),

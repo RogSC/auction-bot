@@ -8,6 +8,7 @@ use App\Models\Auction;
 use App\Models\User;
 use App\Modules\Auction\Application\ListVisibleAuctions;
 use App\Modules\Telegram\Application\TelegramMessageRenderer;
+use App\Modules\Telegram\Application\ShowCurrentReleaseLots;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
 
 final readonly class AuctionReplyKeyboardHandler
@@ -16,6 +17,7 @@ final readonly class AuctionReplyKeyboardHandler
         private TelegramBotApiClient $client,
         private ListVisibleAuctions $visibleAuctions,
         private TelegramMessageRenderer $renderer,
+        private ShowCurrentReleaseLots $showCurrentReleaseLots,
     ) {}
 
     /** @param array<string, mixed> $message */
@@ -23,7 +25,15 @@ final readonly class AuctionReplyKeyboardHandler
     {
         $text = $message['text'] ?? null;
         $chatId = (int) ($message['chat']['id'] ?? 0);
-        if (! is_string($text) || $chatId <= 0 || preg_match('/^Аукцион #(\d+)$/u', $text, $matches) !== 1) {
+        if (! is_string($text) || $chatId <= 0) {
+            return false;
+        }
+        if ($text === 'Все лоты') {
+            $this->showCurrentReleaseLots->handle($chatId);
+
+            return true;
+        }
+        if (preg_match('/^Аукцион #(\d+)$/u', $text, $matches) !== 1) {
             return false;
         }
 

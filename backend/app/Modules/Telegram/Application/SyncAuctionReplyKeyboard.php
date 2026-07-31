@@ -16,13 +16,13 @@ final readonly class SyncAuctionReplyKeyboard
         private TelegramBotApiClient $client,
     ) {}
 
-    public function handle(string $eventKey): void
+    public function handle(string $eventKey, ?string $message = null): void
     {
         $auctions = $this->visibleAuctions->handle();
         $replyMarkup = $this->keyboard->forAuctions($auctions);
-        $text = $auctions->isEmpty()
+        $text = $message ?? ($auctions->isEmpty()
             ? 'Активных аукционов сейчас нет.'
-            : 'Меню активных аукционов обновлено.';
+            : 'Меню активных аукционов обновлено.');
 
         User::query()
             ->whereNotNull('telegram_id')

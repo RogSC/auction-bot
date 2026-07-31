@@ -28,7 +28,7 @@ final readonly class TermsCallbackHandler
         }
 
         $this->acceptTerms->handle($user->id, substr($data, strlen('terms_accept:')));
-        $this->client->sendMessage($chatId, 'Terms accepted. You may now place a bid.');
+        $this->client->sendMessage($chatId, 'Правила приняты. Теперь можно делать ставки.');
 
         return true;
     }

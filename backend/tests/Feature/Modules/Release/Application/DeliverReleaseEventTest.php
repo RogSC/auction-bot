@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Artwork;
+use App\Models\Auction;
 use App\Models\Release;
 use App\Models\ReleaseDelivery;
 use App\Models\ReleaseEvent;
@@ -136,4 +137,52 @@ it('sends an explanation quietly as a reply to that user artwork message', funct
     });
 
     expect($user->id)->toBeGreaterThan(0);
+});
+
+it('sends a catalog with numbered lots and artwork details', function (): void {
+    Storage::fake('local');
+    configureTelegramForReleaseDeliveryTest();
+    Http::fake(['https://telegram.test/*' => Http::response(['ok' => true, 'result' => ['message_id' => 701]])]);
+    $release = createReleaseForDeliveryTest();
+    $artwork = createArtworkForDeliveryTest($release->created_by_admin_id);
+    $artwork->update([
+        'artist_name' => 'Ada Artist',
+        'creation_year' => 2026,
+        'description' => 'Digital landscape.',
+    ]);
+    $release->releaseArtworks()->create(['artwork_id' => $artwork->id, 'position' => 1]);
+    Auction::query()->create([
+        'artwork_id' => $artwork->id,
+        'status' => 'scheduled',
+        'start_price_cents' => 12_500,
+        'bid_increment_cents' => 1_000,
+        'current_price_cents' => 12_500,
+        'starts_at' => now()->addHour(),
+        'ends_at' => now()->addHours(2),
+        'extension_threshold_seconds' => 120,
+        'extension_duration_seconds' => 120,
+    ]);
+    createSubscriberForDeliveryTest($release, now()->subHour());
+    $event = ReleaseEvent::query()->create([
+        'release_id' => $release->id,
+        'sequence' => 1,
+        'type' => ReleaseEventType::SendCatalog,
+        'scheduled_at' => now()->subMinute(),
+    ]);
+
+    app(DeliverReleaseEvent::class)->handle($event->id);
+
+    Http::assertSent(function (Request $request): bool {
+        return str_ends_with($request->url(), '/sendPhoto')
+            && str_contains($request['caption'], 'Лот №1')
+            && str_contains($request['caption'], 'Автор: Ada Artist')
+            && str_contains($request['caption'], 'Название: Untitled')
+            && str_contains($request['caption'], 'Год: 2026')
+            && str_contains($request['caption'], 'Digital landscape.')
+            && str_contains($request['caption'], 'Стартовая цена: $125.00');
+    });
+    Http::assertSent(function (Request $request): bool {
+        return str_ends_with($request->url(), '/sendMessage')
+            && str_starts_with($request['text'], 'Аукцион начнётся ');
+    });
 });

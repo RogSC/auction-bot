@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Release\Application;
 
 use App\Models\Auction;
+use App\Models\Artwork;
 use App\Models\ReleaseDelivery;
 use App\Models\ReleaseEvent;
 use App\Models\ReleaseSubscription;
@@ -17,6 +18,7 @@ use App\Modules\Release\Domain\Enums\ReleaseStatus;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 final readonly class DeliverReleaseEvent
@@ -201,23 +203,44 @@ final readonly class DeliverReleaseEvent
 
     private function sendCatalog(ReleaseEvent $event): void
     {
-        $text = $this->catalogText($event);
+        $catalogItems = $this->catalogItems($event);
         foreach ($this->recipients($event) as $subscription) {
             $delivery = $this->delivery($event, $subscription->user_id);
             if ($delivery->status === ReleaseDeliveryStatus::Sent) {
                 continue;
             }
 
-            $messageId = $this->telegram->sendMessage(
-                $subscription->user->telegram_id,
-                $text,
-                idempotencyKey: "release-event-{$event->id}-user-{$subscription->user_id}",
-            );
-            if ($messageId === null) {
-                throw new RuntimeException('Telegram did not return a message ID for the catalog delivery.');
+            $firstMessageId = null;
+            foreach ($catalogItems as $item) {
+                $messageId = $this->telegram->sendPhoto(
+                    $subscription->user->telegram_id,
+                    $item['artwork']->preview_disk,
+                    $item['artwork']->preview_path,
+                    $this->catalogCaption($item['lotNumber'], $item['artwork'], $item['auction']),
+                    "release-catalog-{$event->id}-user-{$subscription->user_id}-artwork-{$item['artwork']->id}",
+                );
+                if ($messageId === null) {
+                    throw new RuntimeException('Telegram did not return a message ID for the catalog artwork delivery.');
+                }
+
+                $firstMessageId ??= $messageId;
             }
 
-            $delivery->update(['telegram_message_id' => $messageId, 'status' => ReleaseDeliveryStatus::Sent, 'sent_at' => now()]);
+            $startMessage = $this->catalogStartMessage($catalogItems);
+            if ($startMessage !== null) {
+                $messageId = $this->telegram->sendMessage(
+                    $subscription->user->telegram_id,
+                    $startMessage,
+                    idempotencyKey: "release-catalog-start-{$event->id}-user-{$subscription->user_id}",
+                );
+                $firstMessageId ??= $messageId;
+            }
+
+            $delivery->update([
+                'telegram_message_id' => $firstMessageId,
+                'status' => ReleaseDeliveryStatus::Sent,
+                'sent_at' => now(),
+            ]);
         }
     }
 
@@ -279,30 +302,64 @@ final readonly class DeliverReleaseEvent
         return is_string($value) && $value !== '' ? $value : null;
     }
 
-    private function catalogText(ReleaseEvent $event): string
+    /** @return Collection<int, array{lotNumber: int, artwork: Artwork, auction: Auction}> */
+    private function catalogItems(ReleaseEvent $event): Collection
     {
         $artworkIds = $event->release->artworks->modelKeys();
         $auctions = Auction::query()->whereIn('artwork_id', $artworkIds)->get()->keyBy('artwork_id');
-        $lines = ['Каталог выпуска'];
 
-        foreach ($event->release->artworks as $artwork) {
+        return $event->release->artworks->values()->map(function (Artwork $artwork, int $index) use ($auctions): ?array {
             $auction = $auctions->get($artwork->id);
             if ($auction === null) {
-                continue;
+                return null;
             }
 
-            $lines[] = sprintf(
-                "%s — %s\n%s\nСтартовая цена: %s\nШаг: %s\nПродление: %d сек.",
-                $artwork->artist_name ?? 'Автор не указан',
-                $artwork->title,
-                $artwork->ownership_terms ?? 'Эксклюзивные права владения.',
-                $this->formatUsd($auction->start_price_cents),
-                $this->formatUsd($auction->bid_increment_cents),
-                $auction->extension_duration_seconds,
-            );
+            return ['lotNumber' => $index + 1, 'artwork' => $artwork, 'auction' => $auction];
+        })->filter()->values();
+    }
+
+    private function catalogCaption(int $lotNumber, Artwork $artwork, Auction $auction): string
+    {
+        return sprintf(
+            "Лот №%d\nАвтор: %s\nНазвание: %s\nГод: %s\n%s\nСтартовая цена: %s",
+            $lotNumber,
+            $artwork->artist_name ?? 'Автор не указан',
+            $artwork->title,
+            $artwork->creation_year ?? 'Не указан',
+            Str::limit($artwork->description, 700),
+            $this->formatUsd($auction->start_price_cents),
+        );
+    }
+
+    /** @param Collection<int, array{lotNumber: int, artwork: Artwork, auction: Auction}> $catalogItems */
+    private function catalogStartMessage(Collection $catalogItems): ?string
+    {
+        if ($catalogItems->isEmpty()) {
+            return null;
         }
 
-        return implode("\n\n", $lines);
+        $startsAt = $catalogItems
+            ->map(fn (array $item) => $item['auction']->starts_at)
+            ->unique(fn ($startsAt): string => $startsAt->toIso8601String())
+            ->values();
+
+        if ($startsAt->count() === 1) {
+            return 'Аукцион начнётся '.$this->formatAuctionStart($startsAt->first()).'.';
+        }
+
+        $lines = ['Аукционы начнутся:'];
+        foreach ($catalogItems as $item) {
+            $lines[] = sprintf('Лот №%d — %s', $item['lotNumber'], $this->formatAuctionStart($item['auction']->starts_at));
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function formatAuctionStart(\DateTimeInterface $startsAt): string
+    {
+        return \Carbon\CarbonImmutable::instance($startsAt)
+            ->setTimezone(config('app.timezone'))
+            ->format('d.m.Y H:i');
     }
 
     private function formatUsd(int $cents): string

@@ -18,7 +18,7 @@ final readonly class SendPaymentConfirmedNotification implements ShouldQueue, Sh
     {
         $user = User::query()->find($event->auction->buyer_id);
         if ($user?->telegram_id !== null) {
-            $this->client->sendMessage($user->telegram_id, 'Payment confirmed. Your purchase is complete.', idempotencyKey: "payment-confirmed-{$event->auction->id}");
+            $this->client->sendMessage($user->telegram_id, 'Оплата подтверждена. Покупка завершена.', idempotencyKey: "payment-confirmed-{$event->auction->id}");
         }
     }
 }

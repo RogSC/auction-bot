@@ -18,6 +18,7 @@ class ArtworksTable
                 ImageColumn::make('preview_path')->disk('local'),
                 TextColumn::make('title')->searchable()->sortable(),
                 TextColumn::make('artist_name')->label('Artist')->searchable(),
+                TextColumn::make('creation_year')->label('Year')->sortable(),
                 TextColumn::make('created_at')->dateTime()->sortable(),
             ])
             ->filters([

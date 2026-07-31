@@ -8,13 +8,12 @@ use App\Models\Auction;
 use App\Models\User;
 use App\Modules\Auction\Application\AuctionOperationException;
 use App\Modules\Auction\Application\PlaceNextBid;
-use App\Modules\Participant\Application\TermsVersion;
 use App\Modules\Telegram\Application\TelegramMessageRenderer;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
 
 final readonly class BidCallbackHandler
 {
-    public function __construct(private TelegramBotApiClient $client, private TelegramMessageRenderer $renderer, private PlaceNextBid $placeNextBid, private TermsVersion $termsVersion) {}
+    public function __construct(private TelegramBotApiClient $client, private TelegramMessageRenderer $renderer, private PlaceNextBid $placeNextBid) {}
 
     /** @param array<string, mixed> $callbackQuery */
     public function handle(array $callbackQuery): bool
@@ -34,12 +33,6 @@ final readonly class BidCallbackHandler
         $auction = Auction::query()->find((int) $parts[1]);
         $user = User::query()->where('telegram_id', $telegramId)->first();
         if ($auction === null || $user === null) {
-            return true;
-        }
-
-        if ($user->accepted_terms_at === null || $user->accepted_terms_version !== $this->termsVersion->current()) {
-            $this->client->sendMessage($chatId, $this->renderer->terms(), $this->renderer->termsKeyboard($this->termsVersion->current()));
-
             return true;
         }
 
