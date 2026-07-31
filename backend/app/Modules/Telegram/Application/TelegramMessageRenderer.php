@@ -38,20 +38,26 @@ final readonly class TelegramMessageRenderer
         return "Текущая цена: {$auction->current_price_cents} центов\nТекущий лидер: {$leader}\nОкончание: {$auction->ends_at->format('d.m.Y H:i')}";
     }
 
+    public function refreshedAuctionCaption(string $currentCaption, Auction $auction, ?string $leaderCode): string
+    {
+        $status = $this->auction($auction, $leaderCode);
+        $firstStatusLine = strtok($status, "\n");
+        $statusPosition = $firstStatusLine === false ? false : strrpos($currentCaption, "\n{$firstStatusLine}");
+
+        if ($statusPosition === false) {
+            return rtrim($currentCaption)."\n\n{$status}";
+        }
+
+        return rtrim(substr($currentCaption, 0, $statusPosition))."\n\n{$status}";
+    }
+
     /** @return array<string, array<int, array<int, array<string, string>>> > */
     public function auctionKeyboard(Auction $auction): array
     {
         return ['inline_keyboard' => [
-            [['text' => 'Сделать следующую ставку', 'callback_data' => "bid_prepare:{$auction->id}:{$auction->version}"]],
+            [['text' => 'Сделать ставку', 'callback_data' => "bid_confirm:{$auction->id}:{$auction->version}"]],
             [['text' => 'Обновить', 'callback_data' => "auction_refresh:{$auction->id}:{$auction->version}"]],
         ]];
-    }
-
-    public function bidConfirmation(Auction $auction): string
-    {
-        $amount = $auction->current_price_cents + $auction->bid_increment_cents;
-
-        return "Подтвердите ставку: {$amount} центов.";
     }
 
     public function terms(): string
@@ -65,11 +71,4 @@ final readonly class TelegramMessageRenderer
         return ['inline_keyboard' => [[['text' => 'Принимаю правила', 'callback_data' => "terms_accept:{$version}"]]]];
     }
 
-    /** @return array<string, array<int, array<int, array<string, string>>> > */
-    public function bidConfirmationKeyboard(Auction $auction): array
-    {
-        return ['inline_keyboard' => [
-            [['text' => 'Подтвердить ставку', 'callback_data' => "bid_confirm:{$auction->id}:{$auction->version}"]],
-        ]];
-    }
 }

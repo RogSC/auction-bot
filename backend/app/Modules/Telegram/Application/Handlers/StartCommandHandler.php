@@ -7,7 +7,6 @@ namespace App\Modules\Telegram\Application\Handlers;
 use App\Models\User;
 use App\Modules\Release\Application\SubscribeToCurrentRelease;
 use App\Modules\Telegram\Application\TelegramMessageRenderer;
-use App\Modules\Telegram\Application\SyncAuctionReplyKeyboard;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
 
 final readonly class StartCommandHandler
@@ -16,7 +15,6 @@ final readonly class StartCommandHandler
         private TelegramBotApiClient $client,
         private TelegramMessageRenderer $renderer,
         private SubscribeToCurrentRelease $subscribeToCurrentRelease,
-        private SyncAuctionReplyKeyboard $syncAuctionReplyKeyboard,
     ) {}
 
     /** @param array<string, mixed> $message */
@@ -42,12 +40,10 @@ final readonly class StartCommandHandler
 
         if ($subscription !== null) {
             $this->client->sendMessage($chatId, $this->renderer->releaseWelcome(), disableNotification: true);
-            $this->syncAuctionReplyKeyboard->sendCurrentToUser($user);
 
             return;
         }
 
-        $this->client->sendMessage($chatId, $this->renderer->welcome(), $this->renderer->mainMenu());
-        $this->syncAuctionReplyKeyboard->sendCurrentToUser($user);
+        $this->client->sendMessage($chatId, $this->renderer->welcome());
     }
 }

@@ -38,13 +38,7 @@ final readonly class BidCallbackHandler
 
         if ($parts[0] === 'auction_refresh') {
             $leaderCode = User::query()->find($auction->current_leader_id)?->bidder_code;
-            $this->client->sendMessage($chatId, $this->renderer->auction($auction, $leaderCode), $this->renderer->auctionKeyboard($auction));
-
-            return true;
-        }
-
-        if ($parts[0] === 'bid_prepare') {
-            $this->client->sendMessage($chatId, $this->renderer->bidConfirmation($auction), $this->renderer->bidConfirmationKeyboard($auction));
+            $this->refreshAuctionMessage($callbackQuery, $chatId, $auction, $leaderCode);
 
             return true;
         }
@@ -62,5 +56,35 @@ final readonly class BidCallbackHandler
         $this->client->sendMessage($chatId, $this->renderer->auction($auction, $leaderCode), $this->renderer->auctionKeyboard($auction));
 
         return true;
+    }
+
+    /** @param array<string, mixed> $callbackQuery */
+    private function refreshAuctionMessage(array $callbackQuery, int $chatId, Auction $auction, ?string $leaderCode): void
+    {
+        $message = $callbackQuery['message'] ?? null;
+        $messageId = is_array($message) ? ($message['message_id'] ?? null) : null;
+        $keyboard = $this->renderer->auctionKeyboard($auction);
+
+        if (! is_int($messageId)) {
+            $this->client->sendMessage($chatId, $this->renderer->auction($auction, $leaderCode), $keyboard);
+
+            return;
+        }
+
+        try {
+            if (isset($message['photo'])) {
+                $caption = is_string($message['caption'] ?? null) ? $message['caption'] : '';
+                $this->client->editMessageCaption(
+                    $chatId,
+                    $messageId,
+                    $this->renderer->refreshedAuctionCaption($caption, $auction, $leaderCode),
+                    $keyboard,
+                );
+            } else {
+                $this->client->editMessageText($chatId, $messageId, $this->renderer->auction($auction, $leaderCode), $keyboard);
+            }
+        } catch (\Throwable) {
+            $this->client->sendMessage($chatId, $this->renderer->auction($auction, $leaderCode), $keyboard);
+        }
     }
 }

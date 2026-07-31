@@ -80,6 +80,7 @@ final readonly class TelegramBotApiClient
         ?string $caption = null,
         ?string $idempotencyKey = null,
         bool $disableNotification = false,
+        ?array $replyMarkup = null,
     ): ?int {
         if (! $this->filesystems->disk($disk)->exists($path)) {
             throw new RuntimeException("Telegram photo does not exist on disk [{$disk}]: {$path}");
@@ -91,6 +92,9 @@ final readonly class TelegramBotApiClient
         }
         if ($disableNotification) {
             $parameters['disable_notification'] = true;
+        }
+        if ($replyMarkup !== null) {
+            $parameters['reply_markup'] = $replyMarkup;
         }
 
         $key = $idempotencyKey ?? (string) Str::uuid();
@@ -151,6 +155,28 @@ final readonly class TelegramBotApiClient
         }
     }
 
+    /** @param array<string, mixed>|null $replyMarkup */
+    public function editMessageText(int $chatId, int $messageId, string $text, ?array $replyMarkup = null): void
+    {
+        $parameters = ['chat_id' => $chatId, 'message_id' => $messageId, 'text' => $text];
+        if ($replyMarkup !== null) {
+            $parameters['reply_markup'] = $replyMarkup;
+        }
+
+        $this->edit('editMessageText', $parameters);
+    }
+
+    /** @param array<string, mixed>|null $replyMarkup */
+    public function editMessageCaption(int $chatId, int $messageId, string $caption, ?array $replyMarkup = null): void
+    {
+        $parameters = ['chat_id' => $chatId, 'message_id' => $messageId, 'caption' => $caption];
+        if ($replyMarkup !== null) {
+            $parameters['reply_markup'] = $replyMarkup;
+        }
+
+        $this->edit('editMessageCaption', $parameters);
+    }
+
     /** @param array<string, mixed> $parameters */
     private function prepareOutbound(int $chatId, string $type, array $parameters, string $key): bool
     {
@@ -174,6 +200,20 @@ final readonly class TelegramBotApiClient
         return true;
     }
 
+    /** @param array<string, mixed> $parameters */
+    private function edit(string $method, array $parameters): void
+    {
+        try {
+            $this->call($method, $parameters);
+        } catch (\Throwable $exception) {
+            if (str_contains($exception->getMessage(), 'message is not modified')) {
+                return;
+            }
+
+            throw $exception;
+        }
+    }
+
     public function answerCallbackQuery(string $callbackQueryId): void
     {
         $this->call('answerCallbackQuery', ['callback_query_id' => $callbackQueryId]);
@@ -183,5 +223,10 @@ final readonly class TelegramBotApiClient
     public function setMyCommands(array $commands): void
     {
         $this->call('setMyCommands', ['commands' => $commands]);
+    }
+
+    public function deleteMyCommands(): void
+    {
+        $this->call('deleteMyCommands', []);
     }
 }

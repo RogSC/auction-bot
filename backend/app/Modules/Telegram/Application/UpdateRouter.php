@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Telegram\Application;
 
 use App\Modules\Telegram\Application\Handlers\CallbackQueryHandler;
-use App\Modules\Telegram\Application\Handlers\AuctionReplyKeyboardHandler;
 use App\Modules\Telegram\Application\Handlers\StartCommandHandler;
 use App\Modules\Telegram\Application\Handlers\SubscribeCommandHandler;
 
@@ -14,7 +13,6 @@ final readonly class UpdateRouter
     public function __construct(
         private StartCommandHandler $startCommandHandler,
         private SubscribeCommandHandler $subscribeCommandHandler,
-        private AuctionReplyKeyboardHandler $auctionReplyKeyboardHandler,
         private CallbackQueryHandler $callbackQueryHandler,
     ) {}
 
@@ -44,6 +42,5 @@ final readonly class UpdateRouter
             return;
         }
 
-        $this->auctionReplyKeyboardHandler->handle($message);
     }
 }

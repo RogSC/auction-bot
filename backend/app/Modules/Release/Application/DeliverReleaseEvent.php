@@ -33,7 +33,7 @@ final readonly class DeliverReleaseEvent
         }
 
         try {
-            $event->loadMissing(['release.artworks', 'artwork', 'auction']);
+            $event->loadMissing(['release.releaseArtworks.artwork', 'release.releaseArtworks.auction', 'artwork', 'auction']);
             if ($event->release->status !== ReleaseStatus::Running) {
                 $event->update(['status' => ReleaseEventStatus::Cancelled]);
 
@@ -250,7 +250,10 @@ final readonly class DeliverReleaseEvent
             throw new RuntimeException('Auction activation event must reference an auction.');
         }
 
-        $this->activateAuction->handle($event->auction_id);
+        $auction = Auction::query()->findOrFail($event->auction_id);
+        if ($auction->status === \App\Modules\Auction\Domain\Enums\AuctionStatus::Scheduled) {
+            $this->activateAuction->handle($auction->id);
+        }
     }
 
     private function delivery(ReleaseEvent $event, int $userId): ReleaseDelivery
@@ -305,12 +308,10 @@ final readonly class DeliverReleaseEvent
     /** @return Collection<int, array{lotNumber: int, artwork: Artwork, auction: Auction}> */
     private function catalogItems(ReleaseEvent $event): Collection
     {
-        $artworkIds = $event->release->artworks->modelKeys();
-        $auctions = Auction::query()->whereIn('artwork_id', $artworkIds)->get()->keyBy('artwork_id');
-
-        return $event->release->artworks->values()->map(function (Artwork $artwork, int $index) use ($auctions): ?array {
-            $auction = $auctions->get($artwork->id);
-            if ($auction === null) {
+        return $event->release->releaseArtworks->values()->map(function ($releaseArtwork, int $index): ?array {
+            $auction = $releaseArtwork->auction;
+            $artwork = $releaseArtwork->artwork;
+            if ($auction === null || $artwork === null) {
                 return null;
             }
 

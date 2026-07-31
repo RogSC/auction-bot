@@ -24,7 +24,7 @@ class ReleaseForm
                 ->schema([
                     TextInput::make('title')->required()->maxLength(255),
                     DateTimePicker::make('starts_at')->required(),
-                    DateTimePicker::make('ends_at')->after('starts_at'),
+                    DateTimePicker::make('ends_at')->required()->after('starts_at'),
                     TextInput::make('timeline_scale_basis_points')
                         ->label('Timeline scale (basis points)')
                         ->numeric()
@@ -33,6 +33,7 @@ class ReleaseForm
                         ->required(),
                 ])->columns(2),
             Section::make('Works in catalog')
+                ->description('Each work becomes a separate auction lot. All lots share the release start and end time.')
                 ->schema([
                     Repeater::make('releaseArtworks')
                         ->relationship()
@@ -43,8 +44,18 @@ class ReleaseForm
                                 ->options(fn (): array => Artwork::query()->orderBy('title')->pluck('title', 'id')->all())
                                 ->searchable()
                                 ->required(),
-                        ])
-                        ->addActionLabel('Add artwork')
+                            TextInput::make('start_price_cents')
+                                ->label('Start price, cents')
+                                ->numeric()
+                                ->minValue(1)
+                                ->required(),
+                            TextInput::make('bid_increment_cents')
+                                ->label('Bid increment, cents')
+                                ->numeric()
+                                ->minValue(1)
+                                ->required(),
+                        ])->columns(3)
+                        ->addActionLabel('Add lot')
                         ->defaultItems(0),
                 ]),
             Section::make('Shared timeline')
@@ -54,7 +65,7 @@ class ReleaseForm
                         ->relationship()
                         ->orderColumn('sequence')
                         ->schema([
-                            Select::make('type')->options(self::options(ReleaseEventType::cases()))->required(),
+                            Select::make('type')->options(self::eventTypeOptions())->required(),
                             Select::make('artwork_id')
                                 ->label('Artwork')
                                 ->options(fn (): array => Artwork::query()->orderBy('title')->pluck('title', 'id')->all())
@@ -86,5 +97,14 @@ class ReleaseForm
         return collect($cases)->mapWithKeys(
             fn (\BackedEnum $case): array => [$case->value => str($case->name)->headline()->toString()],
         )->all();
+    }
+
+    /** @return array<string, string> */
+    private static function eventTypeOptions(): array
+    {
+        return self::options(array_values(array_filter(
+            ReleaseEventType::cases(),
+            fn (ReleaseEventType $type): bool => $type !== ReleaseEventType::ActivateAuction,
+        )));
     }
 }

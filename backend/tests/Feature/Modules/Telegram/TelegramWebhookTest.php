@@ -29,10 +29,7 @@ it('routes the start command, creates a participant, and calls the Telegram clie
 
     expect(DB::table('users')->where('telegram_id', 800_001)->value('bidder_code'))->toMatch('/^BIDDER-\d{6}$/');
     Http::assertSent(fn ($request): bool => $request->url() === 'https://api.telegram.org/bottest-bot-token/sendMessage'
-        && $request['reply_markup']['inline_keyboard'][0][0]['callback_data'] === 'menu:active'
-        && $request['reply_markup']['inline_keyboard'][1][0]['callback_data'] === 'menu:bids'
-        && $request['reply_markup']['inline_keyboard'][2][0]['callback_data'] === 'menu:completed'
-        && $request['reply_markup']['inline_keyboard'][3][0]['callback_data'] === 'menu:rules');
+        && $request['text'] === 'Добро пожаловать в бот цифровых арт-аукционов.');
 });
 
 it('renders an auction without Telegram identifiers or usernames', function (): void {
