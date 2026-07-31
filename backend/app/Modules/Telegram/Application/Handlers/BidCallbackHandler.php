@@ -37,6 +37,7 @@ final readonly class BidCallbackHandler
         }
 
         if ($parts[0] === 'auction_refresh') {
+            $auction->loadCount('bids');
             $this->refreshAuctionMessage($callbackQuery, $chatId, $auction, $this->leaderLabel($auction, $user));
 
             return true;
@@ -51,6 +52,7 @@ final readonly class BidCallbackHandler
         }
 
         $auction->refresh();
+        $auction->loadCount('bids');
         $this->refreshAuctionMessage($callbackQuery, $chatId, $auction, $this->leaderLabel($auction, $user));
 
         return true;
@@ -73,11 +75,11 @@ final readonly class BidCallbackHandler
                 $this->client->editMessageCaption(
                     $chatId,
                     $messageId,
-                    $this->renderer->refreshedAuctionCaption($caption, $auction, $leaderCode),
+                    $this->renderer->refreshedAuctionCaption($caption, $auction, $leaderCode, $auction->bids_count),
                     $keyboard,
                 );
             } else {
-                $this->client->editMessageText($chatId, $messageId, $this->renderer->auction($auction, $leaderCode), $keyboard);
+                $this->client->editMessageText($chatId, $messageId, $this->renderer->auction($auction, $leaderCode, $auction->bids_count), $keyboard);
             }
         } catch (\Throwable) {
             // The original Telegram message may have been deleted. Do not create a

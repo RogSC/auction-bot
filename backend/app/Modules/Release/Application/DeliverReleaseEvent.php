@@ -8,7 +8,7 @@ use App\Models\Auction;
 use App\Models\Artwork;
 use App\Models\ReleaseDelivery;
 use App\Models\ReleaseEvent;
-use App\Models\ReleaseSubscription;
+use App\Models\User;
 use App\Modules\Auction\Application\ActivateAuction;
 use App\Modules\Release\Domain\Enums\ReleaseDeliveryStatus;
 use App\Modules\Release\Domain\Enums\ReleaseEventStatus;
@@ -85,17 +85,11 @@ final readonly class DeliverReleaseEvent
         });
     }
 
-    /** @return Collection<int, ReleaseSubscription> */
+    /** @return Collection<int, User> */
     private function recipients(ReleaseEvent $event): Collection
     {
-        return ReleaseSubscription::query()
-            ->with('user')
-            ->where('release_id', $event->release_id)
-            ->where('subscribed_at', '<=', $event->scheduled_at)
-            ->where(function ($query) use ($event): void {
-                $query->whereNull('unsubscribed_at')->orWhere('unsubscribed_at', '>', $event->scheduled_at);
-            })
-            ->whereHas('user', fn ($query) => $query->whereNotNull('telegram_id'))
+        return User::query()
+            ->whereNotNull('telegram_id')
             ->orderBy('id')
             ->get();
     }
@@ -107,18 +101,18 @@ final readonly class DeliverReleaseEvent
         }
 
         $caption = $this->payloadText($event, 'caption');
-        foreach ($this->recipients($event) as $subscription) {
-            $delivery = $this->delivery($event, $subscription->user_id);
+        foreach ($this->recipients($event) as $user) {
+            $delivery = $this->delivery($event, $user->id);
             if ($delivery->status === ReleaseDeliveryStatus::Sent) {
                 continue;
             }
 
             $messageId = $this->telegram->sendPhoto(
-                $subscription->user->telegram_id,
+                $user->telegram_id,
                 $event->artwork->preview_disk,
                 $event->artwork->preview_path,
                 $caption,
-                "release-event-{$event->id}-user-{$subscription->user_id}",
+                "release-event-{$event->id}-user-{$user->id}",
             );
             if ($messageId === null) {
                 throw new RuntimeException('Telegram did not return a message ID for the artwork delivery.');
@@ -141,17 +135,17 @@ final readonly class DeliverReleaseEvent
             throw new RuntimeException('Explanation event must contain payload.text.');
         }
 
-        foreach ($this->recipients($event) as $subscription) {
-            $delivery = $this->delivery($event, $subscription->user_id);
+        foreach ($this->recipients($event) as $user) {
+            $delivery = $this->delivery($event, $user->id);
             if ($delivery->status === ReleaseDeliveryStatus::Sent) {
                 continue;
             }
 
-            $replyToMessageId = $this->artworkMessageIdFor($event, $subscription->user_id);
+            $replyToMessageId = $this->artworkMessageIdFor($event, $user->id);
             $messageId = $this->telegram->sendMessage(
-                $subscription->user->telegram_id,
+                $user->telegram_id,
                 $text,
-                idempotencyKey: "release-event-{$event->id}-user-{$subscription->user_id}",
+                idempotencyKey: "release-event-{$event->id}-user-{$user->id}",
                 disableNotification: $event->notification_mode === ReleaseNotificationMode::Silent,
                 replyToMessageId: $replyToMessageId,
             );
@@ -175,20 +169,20 @@ final readonly class DeliverReleaseEvent
             throw new RuntimeException('Artwork deletion event must reference an artwork.');
         }
 
-        foreach ($this->recipients($event) as $subscription) {
-            $delivery = $this->delivery($event, $subscription->user_id);
+        foreach ($this->recipients($event) as $user) {
+            $delivery = $this->delivery($event, $user->id);
             if ($delivery->status === ReleaseDeliveryStatus::Deleted) {
                 continue;
             }
 
-            $messageId = $this->artworkMessageIdFor($event, $subscription->user_id);
+            $messageId = $this->artworkMessageIdFor($event, $user->id);
             if ($messageId !== null) {
                 $this->telegram->deleteMessage(
-                    $subscription->user->telegram_id,
+                    $user->telegram_id,
                     $messageId,
-                    "release-delete-{$event->id}-user-{$subscription->user_id}",
+                    "release-delete-{$event->id}-user-{$user->id}",
                 );
-                $this->markArtworkMessageDeleted($event, $subscription->user_id, $messageId);
+                $this->markArtworkMessageDeleted($event, $user->id, $messageId);
             }
 
             $delivery->update([
@@ -203,28 +197,26 @@ final readonly class DeliverReleaseEvent
     private function sendCatalog(ReleaseEvent $event): void
     {
         $catalogItems = $this->catalogItems($event);
-        foreach ($this->recipients($event) as $subscription) {
-            $delivery = $this->delivery($event, $subscription->user_id);
+        $catalogMessage = $this->catalogMessage($event, $catalogItems);
+        $catalogKeyboard = [
+            'inline_keyboard' => [[
+                ['text' => 'Открыть каталог', 'callback_data' => "catalog_pending:{$event->release_id}"],
+            ]],
+        ];
+        foreach ($this->recipients($event) as $user) {
+            $delivery = $this->delivery($event, $user->id);
             if ($delivery->status === ReleaseDeliveryStatus::Sent) {
                 continue;
             }
 
             $firstMessageId = $this->telegram->sendMessage(
-                $subscription->user->telegram_id,
-                'Каталог работ:',
-                idempotencyKey: "release-catalog-header-{$event->id}-user-{$subscription->user_id}",
+                $user->telegram_id,
+                $catalogMessage,
+                $catalogKeyboard,
+                "release-catalog-{$event->id}-user-{$user->id}",
             );
             if ($firstMessageId === null) {
                 throw new RuntimeException('Telegram did not return a message ID for the catalog delivery.');
-            }
-
-            $startMessage = $this->catalogStartMessage($catalogItems);
-            if ($startMessage !== null) {
-                $messageId = $this->telegram->sendMessage(
-                    $subscription->user->telegram_id,
-                    $startMessage,
-                    idempotencyKey: "release-catalog-start-{$event->id}-user-{$subscription->user_id}",
-                );
             }
 
             $delivery->update([
@@ -311,27 +303,20 @@ final readonly class DeliverReleaseEvent
     }
 
     /** @param Collection<int, array{lotNumber: int, artwork: Artwork, auction: Auction}> $catalogItems */
-    private function catalogStartMessage(Collection $catalogItems): ?string
+    private function catalogMessage(ReleaseEvent $event, Collection $catalogItems): string
     {
         if ($catalogItems->isEmpty()) {
-            return null;
+            return 'Выставка закончилась. Каталог работ будет добавлен позже.';
         }
 
-        $startsAt = $catalogItems
-            ->map(fn (array $item) => $item['auction']->starts_at)
-            ->unique(fn ($startsAt): string => $startsAt->toIso8601String())
-            ->values();
+        $startsAt = $catalogItems->min(fn (array $item) => $item['auction']->starts_at);
+        $endsAt = $catalogItems->max(fn (array $item) => $item['auction']->ends_at);
+        $lotCount = $event->release->releaseArtworks->count();
 
-        if ($startsAt->count() === 1) {
-            return 'Аукцион начнётся '.$this->formatAuctionStart($startsAt->first()).'.';
-        }
-
-        $lines = ['Аукционы начнутся:'];
-        foreach ($catalogItems as $item) {
-            $lines[] = sprintf('Лот №%d — %s', $item['lotNumber'], $this->formatAuctionStart($item['auction']->starts_at));
-        }
-
-        return implode("\n", $lines);
+        return "Выставка закончилась. {$this->workCountLabel($lotCount)}, пришедших сюда за 14 дней, собраны в каталог. У каждой теперь есть номер лота, описание, стартовая цена и шаг ставки.\n\n"
+            ."Продаётся не сообщение, а работа вместе с историей её доставки. Лоты разной степени материальности: авторский отпечаток, файл с передачей прав, протокол, доступ. Что входит в конкретный лот — указано в его описании.\n\n"
+            ."Каждый лот сопровождается сертификатом и договором.\n\n"
+            ."Торги: с {$this->formatAuctionStart($startsAt)} по {$this->formatAuctionStart($endsAt)}. Ставки принимаются здесь, в боте. Все лоты закрываются одновременно, в {$this->formatAuctionCloseTime($endsAt)}.";
     }
 
     private function formatAuctionStart(\DateTimeInterface $startsAt): string
@@ -339,5 +324,27 @@ final readonly class DeliverReleaseEvent
         return \Carbon\CarbonImmutable::instance($startsAt)
             ->setTimezone(config('app.timezone'))
             ->format('d.m.Y H:i');
+    }
+
+    private function formatAuctionCloseTime(\DateTimeInterface $endsAt): string
+    {
+        return \Carbon\CarbonImmutable::instance($endsAt)
+            ->setTimezone(config('app.timezone'))
+            ->format('H:i');
+    }
+
+    private function workCountLabel(int $count): string
+    {
+        $lastTwoDigits = $count % 100;
+        $lastDigit = $count % 10;
+        $word = $lastTwoDigits >= 11 && $lastTwoDigits <= 14
+            ? 'работ'
+            : match ($lastDigit) {
+                1 => 'работа',
+                2, 3, 4 => 'работы',
+                default => 'работ',
+            };
+
+        return "{$count} {$word}";
     }
 }

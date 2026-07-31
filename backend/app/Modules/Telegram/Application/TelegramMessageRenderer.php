@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Telegram\Application;
 
 use App\Models\Auction;
+use Carbon\CarbonImmutable;
 
 final readonly class TelegramMessageRenderer
 {
@@ -13,9 +14,18 @@ final readonly class TelegramMessageRenderer
         return 'Добро пожаловать в бот цифровых арт-аукционов.';
     }
 
-    public function releaseWelcome(): string
+    public function releaseWelcome(?CarbonImmutable $firstArtworkAt = null): string
     {
-        return 'Вы подписаны. Новые работы будут приходить сюда автоматически.';
+        $firstArtworkLine = $firstArtworkAt === null
+            ? 'Дата первой работы будет объявлена позже.'
+            : 'Первая работа придёт '.$firstArtworkAt->setTimezone(config('app.timezone'))->format('d.m.Y в H:i').'.';
+
+        return "Выставка идёт 14 дней. Работы приходят сюда входящими сообщениями — в час, который назначает сама работа. Расписания на руках не будет.\n\n"
+            ."Через сутки после каждой работы в ответ на неё придёт экспликация: имя художника, название, комментарий. Она приходит тихо, без уведомления, и остаётся рядом с работой в переписке.\n\n"
+            ."Часть работ живёт ограниченное время и исчезает из чата. Архива нет, пересмотреть их будет негде.\n\n"
+            ."Когда выставка закончится, бот пришлёт каталог — те же работы, собранные как лоты. Дальше аукцион: два дня публичных торгов с общим моментом закрытия.\n\n"
+            ."Уведомления от бота — часть формата. Если их выключить, выставка продолжит идти, но пройдёт мимо.\n\n"
+            .$firstArtworkLine;
     }
 
     /** @return array<string, array<int, array<int, array<string, string>>> > */
@@ -31,16 +41,16 @@ final readonly class TelegramMessageRenderer
         ];
     }
 
-    public function auction(Auction $auction, ?string $leaderCode): string
+    public function auction(Auction $auction, ?string $leaderCode, int $bidCount = 0): string
     {
         $leader = $leaderCode === null ? 'Ставок пока нет' : $leaderCode;
 
-        return "Текущая цена: {$auction->current_price_cents} центов\nТекущий лидер: {$leader}";
+        return "Текущая цена: {$auction->current_price_cents} центов\nТекущий лидер: {$leader}\nСтавок: {$bidCount}";
     }
 
-    public function refreshedAuctionCaption(string $currentCaption, Auction $auction, ?string $leaderCode): string
+    public function refreshedAuctionCaption(string $currentCaption, Auction $auction, ?string $leaderCode, int $bidCount = 0): string
     {
-        $status = $this->auction($auction, $leaderCode);
+        $status = $this->auction($auction, $leaderCode, $bidCount);
         $lotCaption = preg_replace('/(?:\R|^)Текущая цена:.*\z/us', '', $currentCaption);
         $lotCaption = rtrim($lotCaption ?? $currentCaption);
 

@@ -7,13 +7,14 @@ namespace App\Modules\Notification\Application\Listeners;
 use App\Models\ReleaseArtwork;
 use App\Models\User;
 use App\Modules\Auction\Domain\Events\BidPlaced;
+use App\Modules\Telegram\Application\TelegramMessageRenderer;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
 
 final readonly class SendBidPlacedNotification implements ShouldQueue, ShouldQueueAfterCommit
 {
-    public function __construct(private TelegramBotApiClient $client) {}
+    public function __construct(private TelegramBotApiClient $client, private TelegramMessageRenderer $renderer) {}
 
     public function handle(BidPlaced $event): void
     {
@@ -23,8 +24,14 @@ final readonly class SendBidPlacedNotification implements ShouldQueue, ShouldQue
             $message = is_numeric($lotNumber)
                 ? 'Аукцион на лот №'.(int) $lotNumber.': вашу ставку перебили.'
                 : "Вашу ставку на аукционе #{$event->auction->id} перебили.";
+            $message .= "\nНовая цена: {$event->auction->current_price_cents} центов.";
 
-            $this->client->sendMessage($outbidUser->telegram_id, $message, idempotencyKey: "bid-outbid-{$event->bid->id}-{$outbidUser->id}");
+            $this->client->sendMessage(
+                $outbidUser->telegram_id,
+                $message,
+                $this->renderer->auctionKeyboard($event->auction),
+                "bid-outbid-{$event->bid->id}-{$outbidUser->id}",
+            );
         }
     }
 }

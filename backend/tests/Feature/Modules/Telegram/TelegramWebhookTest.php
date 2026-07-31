@@ -29,7 +29,8 @@ it('routes the start command, creates a participant, and calls the Telegram clie
 
     expect(DB::table('users')->where('telegram_id', 800_001)->value('bidder_code'))->toMatch('/^BIDDER-\d{6}$/');
     Http::assertSent(fn ($request): bool => $request->url() === 'https://api.telegram.org/bottest-bot-token/sendMessage'
-        && $request['text'] === 'Добро пожаловать в бот цифровых арт-аукционов.');
+        && str_contains($request['text'], 'Выставка идёт 14 дней.')
+        && str_contains($request['text'], 'Дата первой работы будет объявлена позже.'));
 });
 
 it('renders an auction without Telegram identifiers or usernames', function (): void {
@@ -41,7 +42,7 @@ it('renders an auction without Telegram identifiers or usernames', function (): 
         ->not->toContain('username');
 });
 
-it('subscribes a participant to the current release from the Telegram command menu', function (): void {
+it('shows the exhibition welcome text from the Telegram command menu without a release subscription', function (): void {
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 43]])]);
     $adminId = DB::table('admins')->insertGetId([
         'name' => 'Admin',
@@ -65,11 +66,10 @@ it('subscribes a participant to the current release from the Telegram command me
         ],
     ], ['X-Telegram-Bot-Api-Secret-Token' => 'test-webhook-secret'])->assertOk();
 
-    $userId = DB::table('users')->where('telegram_id', 800_002)->value('id');
-    expect(DB::table('release_subscriptions')
-        ->where('release_id', $release->id)
-        ->where('user_id', $userId)
-        ->exists())->toBeTrue();
+    expect(DB::table('users')->where('telegram_id', 800_002)->exists())->toBeTrue()
+        ->and(DB::table('release_subscriptions')->count())->toBe(0);
+    Http::assertSent(fn ($request): bool => $request->url() === 'https://api.telegram.org/bottest-bot-token/sendMessage'
+        && str_contains($request['text'], 'Выставка идёт 14 дней.'));
 });
 
 it('records outgoing messages and suppresses duplicate idempotency keys', function (): void {

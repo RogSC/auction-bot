@@ -17,7 +17,7 @@ final readonly class RefreshReleaseAuctionCards
     public function handle(int $auctionId): void
     {
         $releaseArtwork = ReleaseArtwork::query()->with('release')->where('auction_id', $auctionId)->first();
-        $auction = Auction::query()->find($auctionId);
+        $auction = Auction::query()->withCount('bids')->find($auctionId);
         if ($releaseArtwork === null || $auction === null) {
             return;
         }
@@ -42,7 +42,7 @@ final readonly class RefreshReleaseAuctionCards
             $viewerLeaderCode = $viewer?->id === $auction->current_leader_id ? 'Вы' : $leaderCode;
             $payload = json_decode($message->payload ?? '{}', true);
             $caption = is_array($payload) && is_string($payload['caption'] ?? null) ? $payload['caption'] : '';
-            $updatedCaption = $this->renderer->refreshedAuctionCaption($caption, $auction, $viewerLeaderCode);
+            $updatedCaption = $this->renderer->refreshedAuctionCaption($caption, $auction, $viewerLeaderCode, $auction->bids_count);
 
             try {
                 $this->client->editMessageCaption(

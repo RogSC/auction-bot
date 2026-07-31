@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Telegram\Application\Handlers;
 
 use App\Models\User;
-use App\Modules\Release\Application\SubscribeToCurrentRelease;
+use App\Modules\Release\Application\FindFirstArtworkDelivery;
 use App\Modules\Telegram\Application\TelegramMessageRenderer;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
 
@@ -14,7 +14,7 @@ final readonly class StartCommandHandler
     public function __construct(
         private TelegramBotApiClient $client,
         private TelegramMessageRenderer $renderer,
-        private SubscribeToCurrentRelease $subscribeToCurrentRelease,
+        private FindFirstArtworkDelivery $findFirstArtworkDelivery,
     ) {}
 
     /** @param array<string, mixed> $message */
@@ -36,14 +36,6 @@ final readonly class StartCommandHandler
             $user->update(['bidder_code' => sprintf('BIDDER-%06d', $user->id)]);
         }
 
-        $subscription = $this->subscribeToCurrentRelease->handle($user);
-
-        if ($subscription !== null) {
-            $this->client->sendMessage($chatId, $this->renderer->releaseWelcome(), disableNotification: true);
-
-            return;
-        }
-
-        $this->client->sendMessage($chatId, $this->renderer->welcome());
+        $this->client->sendMessage($chatId, $this->renderer->releaseWelcome($this->findFirstArtworkDelivery->handle()), disableNotification: true);
     }
 }

@@ -72,7 +72,7 @@ function configureTelegramForReleaseDeliveryTest(): void
     Config::set('telegram.api_base_url', 'https://telegram.test');
 }
 
-it('does not send a past artwork event to a subscriber who joined later', function (): void {
+it('sends a release event to every Telegram user without requiring a release subscription', function (): void {
     Storage::fake('local');
     configureTelegramForReleaseDeliveryTest();
     Http::fake(['https://telegram.test/*' => Http::response(['ok' => true, 'result' => ['message_id' => 101]])]);
@@ -88,14 +88,17 @@ it('does not send a past artwork event to a subscriber who joined later', functi
         'scheduled_at' => $scheduledAt,
     ]);
     $earlySubscriber = createSubscriberForDeliveryTest($release, now()->subMinutes(2));
-    $lateSubscriber = createSubscriberForDeliveryTest($release, now());
+    $automaticRecipient = User::query()->create([
+        'telegram_id' => random_int(1_000_000, 9_999_999),
+        'bidder_code' => 'BIDDER-'.random_int(100_000, 999_999),
+    ]);
 
     app(DeliverReleaseEvent::class)->handle($event->id);
 
-    expect(ReleaseDelivery::query()->where('release_event_id', $event->id)->pluck('user_id')->all())->toBe([$earlySubscriber->id])
-        ->and($event->fresh()->status)->toBe(ReleaseEventStatus::Completed)
-        ->and(ReleaseDelivery::query()->where('user_id', $lateSubscriber->id)->count())->toBe(0);
-    Http::assertSentCount(1);
+    expect(ReleaseDelivery::query()->where('release_event_id', $event->id)->pluck('user_id')->all())
+        ->toBe([$earlySubscriber->id, $automaticRecipient->id])
+        ->and($event->fresh()->status)->toBe(ReleaseEventStatus::Completed);
+    Http::assertSentCount(2);
 });
 
 it('sends an explanation quietly as a reply to that user artwork message', function (): void {
@@ -139,7 +142,7 @@ it('sends an explanation quietly as a reply to that user artwork message', funct
     expect($user->id)->toBeGreaterThan(0);
 });
 
-it('sends a catalog placeholder and preserves the auction-start message', function (): void {
+it('sends the closing exhibition message with auction dates and a catalog button', function (): void {
     Storage::fake('local');
     configureTelegramForReleaseDeliveryTest();
     Http::fake(['https://telegram.test/*' => Http::response(['ok' => true, 'result' => ['message_id' => 701]])]);
@@ -175,10 +178,8 @@ it('sends a catalog placeholder and preserves the auction-start message', functi
 
     Http::assertSent(function (Request $request): bool {
         return str_ends_with($request->url(), '/sendMessage')
-            && $request['text'] === 'Каталог работ:';
-    });
-    Http::assertSent(function (Request $request): bool {
-        return str_ends_with($request->url(), '/sendMessage')
-            && str_starts_with($request['text'], 'Аукцион начнётся ');
+            && str_contains($request['text'], 'Выставка закончилась. 1 работа, пришедших сюда за 14 дней, собраны в каталог.')
+            && str_contains($request['text'], 'Торги: с ')
+            && $request['reply_markup']['inline_keyboard'][0][0]['text'] === 'Открыть каталог';
     });
 });

@@ -7,7 +7,7 @@ namespace App\Modules\Telegram\Application;
 use App\Models\Auction;
 use App\Models\Artwork;
 use App\Models\Release;
-use App\Models\ReleaseSubscription;
+use App\Models\User;
 use App\Modules\Auction\Domain\Enums\AuctionStatus;
 use App\Modules\Release\Domain\Enums\ReleaseStatus;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
@@ -38,25 +38,19 @@ final readonly class SendReleaseLotsOnAuctionStart
         $auctions = Auction::query()
             ->whereIn('id', $auctionIds)
             ->where('status', AuctionStatus::Active)
+            ->withCount('bids')
             ->get()
             ->keyBy('id');
         if ($auctions->isEmpty()) {
             return;
         }
 
-        $users = ReleaseSubscription::query()
-            ->where('release_id', $release->id)
-            ->where('subscribed_at', '<=', now())
-            ->where(fn ($query) => $query->whereNull('unsubscribed_at')->orWhere('unsubscribed_at', '>', now()))
-            ->with('user:id,telegram_id')
-            ->get()
-            ->pluck('user')
-            ->filter(fn ($user) => $user?->telegram_id !== null);
+        $users = User::query()->whereNotNull('telegram_id')->get(['id', 'telegram_id']);
 
         foreach ($users as $user) {
             $this->client->sendMessage(
                 $user->telegram_id,
-                $this->auctionStartedMessage($release),
+                $this->auctionStartedMessage($release, $auctions->first()),
                 idempotencyKey: "release-auction-started-{$release->id}-user-{$user->id}",
             );
 
@@ -88,18 +82,23 @@ final readonly class SendReleaseLotsOnAuctionStart
             $artwork->title,
             $artwork->creation_year ?? 'Не указан',
             Str::limit($artwork->description, 700),
-            $this->renderer->auction($auction, null),
+            $this->renderer->auction($auction, null, $auction->bids_count),
         );
     }
 
-    private function auctionStartedMessage(Release $release): string
+    private function auctionStartedMessage(Release $release, Auction $auction): string
     {
-        $message = 'Аукцион начался. Все лоты доступны для ставок.';
+        $endsAt = $release->ends_at ?? $auction->ends_at;
+        $thresholdMinutes = max(1, (int) ceil($auction->extension_threshold_seconds / 60));
+        $extensionMinutes = max(1, (int) ceil($auction->extension_duration_seconds / 60));
 
-        if ($release->ends_at !== null) {
-            $message .= "\nОкончание аукциона: {$release->ends_at->format('d.m.Y H:i')}";
-        }
-
-        return $message;
+        return "Ставки принимаются до {$endsAt->format('d.m.Y H:i')}. Закрытие общее: торги по всем лотам останавливаются в одну минуту.\n\n"
+            ."Как участвовать:\n"
+            ."— откройте лот в каталоге и нажмите «Сделать ставку»\n"
+            ."— шаг ставки указан в карточке лота\n"
+            ."— текущая цена и число ставок видны всем участникам\n\n"
+            ."Если вашу ставку перебьют, бот пришлёт уведомление с номером лота и новой ценой — ответную ставку можно сделать прямо оттуда.\n\n"
+            ."Ставка — обязательство. Отозвать её нельзя.\n\n"
+            ."Ставка, поданная в последние {$thresholdMinutes} мин., продлевает торги по этому лоту на {$extensionMinutes} мин.";
     }
 }
