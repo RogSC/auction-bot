@@ -29,11 +29,10 @@ it('routes the start command, creates a participant, and calls the Telegram clie
 
     expect(DB::table('users')->where('telegram_id', 800_001)->value('bidder_code'))->toMatch('/^BIDDER-\d{6}$/');
     Http::assertSent(fn ($request): bool => $request->url() === 'https://api.telegram.org/bottest-bot-token/sendMessage'
-        && $request['reply_markup']['inline_keyboard'][0][0]['callback_data'] === 'menu:subscribe'
-        && $request['reply_markup']['inline_keyboard'][1][0]['callback_data'] === 'menu:active'
-        && $request['reply_markup']['inline_keyboard'][2][0]['callback_data'] === 'menu:bids'
-        && $request['reply_markup']['inline_keyboard'][3][0]['callback_data'] === 'menu:completed'
-        && $request['reply_markup']['inline_keyboard'][4][0]['callback_data'] === 'menu:rules');
+        && $request['reply_markup']['inline_keyboard'][0][0]['callback_data'] === 'menu:active'
+        && $request['reply_markup']['inline_keyboard'][1][0]['callback_data'] === 'menu:bids'
+        && $request['reply_markup']['inline_keyboard'][2][0]['callback_data'] === 'menu:completed'
+        && $request['reply_markup']['inline_keyboard'][3][0]['callback_data'] === 'menu:rules');
 });
 
 it('renders an auction without Telegram identifiers or usernames', function (): void {
@@ -45,7 +44,7 @@ it('renders an auction without Telegram identifiers or usernames', function (): 
         ->not->toContain('username');
 });
 
-it('subscribes a participant to the current release from the persistent menu', function (): void {
+it('subscribes a participant to the current release from the Telegram command menu', function (): void {
     Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 43]])]);
     $adminId = DB::table('admins')->insertGetId([
         'name' => 'Admin',
@@ -62,11 +61,10 @@ it('subscribes a participant to the current release from the persistent menu', f
 
     $this->postJson('/api/telegram/webhook', [
         'update_id' => 700_004,
-        'callback_query' => [
-            'id' => 'callback-subscribe',
-            'data' => 'menu:subscribe',
+        'message' => [
+            'text' => '/subscribe',
+            'chat' => ['id' => 900_002],
             'from' => ['id' => 800_002, 'first_name' => 'Grace'],
-            'message' => ['chat' => ['id' => 900_002]],
         ],
     ], ['X-Telegram-Bot-Api-Secret-Token' => 'test-webhook-secret'])->assertOk();
 

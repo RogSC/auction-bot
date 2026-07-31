@@ -15,6 +15,7 @@ use App\Modules\Notification\Application\Listeners\SendAuctionFinishedNotificati
 use App\Modules\Notification\Application\Listeners\SendBidPlacedNotification;
 use App\Modules\Notification\Application\Listeners\SendLifecycleNotification;
 use App\Modules\Notification\Application\Listeners\SendPaymentConfirmedNotification;
+use App\Modules\Telegram\Application\Listeners\SyncAuctionReplyKeyboardListener;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -38,6 +39,9 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(AuctionFinished::class, SendAuctionFinishedNotification::class);
         Event::listen(PaymentConfirmed::class, SendPaymentConfirmedNotification::class);
         Event::listen(AuctionStarted::class, SendLifecycleNotification::class);
+        Event::listen(AuctionStarted::class, SyncAuctionReplyKeyboardListener::class);
+        Event::listen(AuctionFinished::class, SyncAuctionReplyKeyboardListener::class);
+        Event::listen(AuctionCancelled::class, SyncAuctionReplyKeyboardListener::class);
         Event::listen(PaymentRequested::class, SendLifecycleNotification::class);
         Event::listen(AuctionCancelled::class, SendLifecycleNotification::class);
         Event::listen(PurchaseOffered::class, SendLifecycleNotification::class);

@@ -178,4 +178,10 @@ final readonly class TelegramBotApiClient
     {
         $this->call('answerCallbackQuery', ['callback_query_id' => $callbackQueryId]);
     }
+
+    /** @param list<array{command: string, description: string}> $commands */
+    public function setMyCommands(array $commands): void
+    {
+        $this->call('setMyCommands', ['commands' => $commands]);
+    }
 }

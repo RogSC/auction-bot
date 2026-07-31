@@ -10,7 +10,7 @@ use App\Modules\Telegram\Application\TelegramMessageRenderer;
 use App\Modules\Telegram\Application\SyncAuctionReplyKeyboard;
 use App\Modules\Telegram\Infrastructure\TelegramBotApiClient;
 
-final readonly class StartCommandHandler
+final readonly class SubscribeCommandHandler
 {
     public function __construct(
         private TelegramBotApiClient $client,
@@ -39,15 +39,11 @@ final readonly class StartCommandHandler
         }
 
         $subscription = $this->subscribeToCurrentRelease->handle($user);
+        $text = $subscription === null
+            ? 'Сейчас нет активного выпуска. Попробуйте снова после его запуска.'
+            : $this->renderer->releaseWelcome();
 
-        if ($subscription !== null) {
-            $this->client->sendMessage($chatId, $this->renderer->releaseWelcome(), disableNotification: true);
-            $this->syncAuctionReplyKeyboard->sendCurrentToUser($user);
-
-            return;
-        }
-
-        $this->client->sendMessage($chatId, $this->renderer->welcome(), $this->renderer->mainMenu());
+        $this->client->sendMessage($chatId, $text, disableNotification: true);
         $this->syncAuctionReplyKeyboard->sendCurrentToUser($user);
     }
 }

@@ -23,7 +23,6 @@ final readonly class TelegramMessageRenderer
     {
         return [
             'inline_keyboard' => [
-                [['text' => 'Подписаться на выпуск', 'callback_data' => 'menu:subscribe']],
                 [['text' => 'Active auctions', 'callback_data' => 'menu:active']],
                 [['text' => 'My bids', 'callback_data' => 'menu:bids']],
                 [['text' => 'Completed auctions', 'callback_data' => 'menu:completed']],
