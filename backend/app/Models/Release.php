@@ -19,6 +19,7 @@ class Release extends Model
         return [
             'status' => ReleaseStatus::class,
             'starts_at' => 'immutable_datetime',
+            'auction_starts_at' => 'immutable_datetime',
             'ends_at' => 'immutable_datetime',
         ];
     }

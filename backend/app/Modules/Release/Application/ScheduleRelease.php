@@ -30,8 +30,11 @@ final readonly class ScheduleRelease
             if ($release->starts_at === null) {
                 throw new ReleaseOperationException('A release start time is required.');
             }
-            if ($release->ends_at === null || ! $release->ends_at->greaterThan($release->starts_at)) {
-                throw new ReleaseOperationException('The release end time must be after its start time.');
+            if ($release->auction_starts_at === null || $release->auction_starts_at->lessThan($release->starts_at)) {
+                throw new ReleaseOperationException('The common auction start time must be at or after the release start time.');
+            }
+            if ($release->ends_at === null || ! $release->ends_at->greaterThan($release->auction_starts_at)) {
+                throw new ReleaseOperationException('The auction end time must be after the common auction start time.');
             }
             if ($release->releaseArtworks->isEmpty()) {
                 throw new ReleaseOperationException('Add at least one artwork before scheduling a release.');
@@ -73,7 +76,7 @@ final readonly class ScheduleRelease
                     'status' => AuctionStatus::Scheduled,
                     'start_price_cents' => $releaseArtwork->start_price_cents,
                     'bid_increment_cents' => $releaseArtwork->bid_increment_cents,
-                    'starts_at' => $release->starts_at,
+                    'starts_at' => $release->auction_starts_at,
                     'ends_at' => $release->ends_at,
                     'extension_threshold_seconds' => $this->auctionSettings->integer('auction.anti_sniping_threshold_seconds'),
                     'extension_duration_seconds' => $this->auctionSettings->integer('auction.anti_sniping_extension_seconds'),

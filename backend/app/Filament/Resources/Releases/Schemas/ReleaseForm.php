@@ -23,8 +23,9 @@ class ReleaseForm
             Section::make('Release')
                 ->schema([
                     TextInput::make('title')->required()->maxLength(255),
-                    DateTimePicker::make('starts_at')->required(),
-                    DateTimePicker::make('ends_at')->required()->after('starts_at'),
+                    DateTimePicker::make('starts_at')->label('Release starts at')->required(),
+                    DateTimePicker::make('auction_starts_at')->label('Auction starts at')->required()->afterOrEqual('starts_at'),
+                    DateTimePicker::make('ends_at')->label('Auction ends at')->required()->after('auction_starts_at'),
                     TextInput::make('timeline_scale_basis_points')
                         ->label('Timeline scale (basis points)')
                         ->numeric()
@@ -33,7 +34,7 @@ class ReleaseForm
                         ->required(),
                 ])->columns(2),
             Section::make('Works in catalog')
-                ->description('Each work becomes a separate auction lot. All lots share the release start and end time.')
+                ->description('Each work becomes a separate auction lot. All lots share the auction start and end time.')
                 ->schema([
                     Repeater::make('releaseArtworks')
                         ->relationship()

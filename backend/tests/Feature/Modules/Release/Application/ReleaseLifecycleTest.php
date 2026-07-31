@@ -10,6 +10,7 @@ use App\Modules\Release\Application\CancelRelease;
 use App\Modules\Release\Application\ReleaseOperationException;
 use App\Modules\Release\Application\ScheduleRelease;
 use App\Modules\Release\Application\StartRelease;
+use App\Modules\Auction\Application\Commands\ActivateScheduledAuctions;
 use App\Modules\Auction\Domain\Enums\AuctionStatus;
 use App\Modules\Release\Domain\Enums\ReleaseEventStatus;
 use App\Modules\Release\Domain\Enums\ReleaseEventType;
@@ -27,6 +28,7 @@ function createDraftReleaseForLifecycleTest(): array
         'title' => 'Lifecycle release',
         'status' => ReleaseStatus::Draft,
         'starts_at' => now()->addHour(),
+        'auction_starts_at' => now()->addMinutes(90),
         'ends_at' => now()->addHours(2),
         'created_by_admin_id' => $adminId,
     ]);
@@ -65,7 +67,7 @@ it('schedules a valid draft release', function (): void {
         ->and($releaseArtwork->auction_id)->not->toBeNull()
         ->and(Auction::query()->findOrFail($releaseArtwork->auction_id))
         ->status->toBe(AuctionStatus::Scheduled)
-        ->starts_at->toEqual($release->starts_at)
+        ->starts_at->toEqual($release->auction_starts_at)
         ->ends_at->toEqual($release->ends_at);
 });
 
@@ -88,10 +90,11 @@ it('creates and starts every release lot at the shared release time', function (
     }
 
     app(ScheduleRelease::class)->handle($release->id);
-    $release->update(['starts_at' => now()->subSecond()]);
+    $release->update(['starts_at' => now()->subMinute(), 'auction_starts_at' => now()->subSecond()]);
     Auction::query()->whereIn('id', $release->releaseArtworks()->pluck('auction_id'))->update(['starts_at' => now()->subSecond()]);
 
     app(StartRelease::class)->handle($release->id);
+    app(ActivateScheduledAuctions::class)->handle(app(\App\Modules\Auction\Application\ActivateAuction::class));
 
     expect(Auction::query()->whereIn('id', $release->releaseArtworks()->pluck('auction_id'))
         ->where('status', AuctionStatus::Active)->count())->toBe(2);
