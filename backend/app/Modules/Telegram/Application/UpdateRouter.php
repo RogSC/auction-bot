@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Telegram\Application;
 
 use App\Modules\Telegram\Application\Handlers\CallbackQueryHandler;
+use App\Modules\Telegram\Application\Handlers\RejectDocumentMessageHandler;
 use App\Modules\Telegram\Application\Handlers\StartCommandHandler;
 use App\Modules\Telegram\Application\Handlers\SubscribeCommandHandler;
 
@@ -14,6 +15,7 @@ final readonly class UpdateRouter
         private StartCommandHandler $startCommandHandler,
         private SubscribeCommandHandler $subscribeCommandHandler,
         private CallbackQueryHandler $callbackQueryHandler,
+        private RejectDocumentMessageHandler $rejectDocumentMessageHandler,
     ) {}
 
     /** @param array<string, mixed> $update */
@@ -27,6 +29,10 @@ final readonly class UpdateRouter
 
         $message = $update['message'] ?? null;
         if (! is_array($message)) {
+            return;
+        }
+
+        if ($this->rejectDocumentMessageHandler->handle($message)) {
             return;
         }
 

@@ -54,6 +54,12 @@ final readonly class SendReleaseLotsOnAuctionStart
             ->filter(fn ($user) => $user?->telegram_id !== null);
 
         foreach ($userIds as $user) {
+            $this->client->sendMessage(
+                $user->telegram_id,
+                'Аукцион начался. Все лоты доступны для ставок.',
+                idempotencyKey: "release-auction-started-{$release->id}-user-{$user->id}",
+            );
+
             foreach ($release->releaseArtworks->values() as $index => $releaseArtwork) {
                 $auction = $auctions->get($releaseArtwork->auction_id);
                 if ($auction === null || $releaseArtwork->artwork === null) {
@@ -76,13 +82,13 @@ final readonly class SendReleaseLotsOnAuctionStart
     private function caption(int $lotNumber, Artwork $artwork, Auction $auction): string
     {
         return sprintf(
-            "Лот №%d\nАвтор: %s\nНазвание: %s\nГод: %s\n%s\nТекущая цена: %d центов",
+            "Лот №%d\nАвтор: %s\nНазвание: %s\nГод: %s\n%s\n\n%s",
             $lotNumber,
             $artwork->artist_name ?? 'Автор не указан',
             $artwork->title,
             $artwork->creation_year ?? 'Не указан',
             Str::limit($artwork->description, 700),
-            $auction->current_price_cents,
+            $this->renderer->auction($auction, null),
         );
     }
 }

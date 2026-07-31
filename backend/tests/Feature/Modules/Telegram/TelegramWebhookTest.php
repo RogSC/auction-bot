@@ -91,6 +91,24 @@ it('rejects webhook requests without the configured Telegram secret token', func
     expect(DB::table('processed_telegram_updates')->count())->toBe(0);
 });
 
+it('deletes documents sent to the bot', function (): void {
+    Http::fake(['https://api.telegram.org/*' => Http::response(['ok' => true, 'result' => true])]);
+
+    $this->postJson('/api/telegram/webhook', [
+        'update_id' => 700_005,
+        'message' => [
+            'message_id' => 501,
+            'chat' => ['id' => 900_005],
+            'from' => ['id' => 800_005, 'first_name' => 'Grace'],
+            'document' => ['file_id' => 'document-id', 'file_name' => 'document.pdf'],
+        ],
+    ], ['X-Telegram-Bot-Api-Secret-Token' => 'test-webhook-secret'])->assertOk();
+
+    Http::assertSent(fn ($request): bool => $request->url() === 'https://api.telegram.org/bottest-bot-token/deleteMessage'
+        && $request['chat_id'] === 900_005
+        && $request['message_id'] === 501);
+});
+
 it('processes each Telegram update id only once', function (): void {
     $headers = ['X-Telegram-Bot-Api-Secret-Token' => 'test-webhook-secret'];
 
