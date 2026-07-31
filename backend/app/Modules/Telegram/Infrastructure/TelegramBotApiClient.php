@@ -94,7 +94,7 @@ final readonly class TelegramBotApiClient
             $parameters['disable_notification'] = true;
         }
         if ($replyMarkup !== null) {
-            $parameters['reply_markup'] = $replyMarkup;
+            $parameters['reply_markup'] = json_encode($replyMarkup, JSON_THROW_ON_ERROR);
         }
 
         $key = $idempotencyKey ?? (string) Str::uuid();

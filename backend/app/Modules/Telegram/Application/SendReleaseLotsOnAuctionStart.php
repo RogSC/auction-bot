@@ -44,7 +44,7 @@ final readonly class SendReleaseLotsOnAuctionStart
             return;
         }
 
-        $userIds = ReleaseSubscription::query()
+        $users = ReleaseSubscription::query()
             ->where('release_id', $release->id)
             ->where('subscribed_at', '<=', now())
             ->where(fn ($query) => $query->whereNull('unsubscribed_at')->orWhere('unsubscribed_at', '>', now()))
@@ -53,7 +53,7 @@ final readonly class SendReleaseLotsOnAuctionStart
             ->pluck('user')
             ->filter(fn ($user) => $user?->telegram_id !== null);
 
-        foreach ($userIds as $user) {
+        foreach ($users as $user) {
             $this->client->sendMessage(
                 $user->telegram_id,
                 'Аукцион начался. Все лоты доступны для ставок.',
