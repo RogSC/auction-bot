@@ -107,13 +107,23 @@ final readonly class DeliverReleaseEvent
                 continue;
             }
 
-            $messageId = $this->telegram->sendPhoto(
-                $user->telegram_id,
-                $event->artwork->preview_disk,
-                $event->artwork->preview_path,
-                $caption,
-                "release-event-{$event->id}-user-{$user->id}",
-            );
+            try {
+                $messageId = $this->telegram->sendPhoto(
+                    $user->telegram_id,
+                    $event->artwork->preview_disk,
+                    $event->artwork->preview_path,
+                    $caption,
+                    "release-event-{$event->id}-user-{$user->id}",
+                );
+            } catch (\Throwable $exception) {
+                if (! $this->isUnavailableTelegramChat($exception)) {
+                    throw $exception;
+                }
+
+                $this->markDeliveryFailed($delivery, $exception);
+
+                continue;
+            }
             if ($messageId === null) {
                 throw new RuntimeException('Telegram did not return a message ID for the artwork delivery.');
             }
@@ -142,13 +152,23 @@ final readonly class DeliverReleaseEvent
             }
 
             $replyToMessageId = $this->artworkMessageIdFor($event, $user->id);
-            $messageId = $this->telegram->sendMessage(
-                $user->telegram_id,
-                $text,
-                idempotencyKey: "release-event-{$event->id}-user-{$user->id}",
-                disableNotification: $event->notification_mode === ReleaseNotificationMode::Silent,
-                replyToMessageId: $replyToMessageId,
-            );
+            try {
+                $messageId = $this->telegram->sendMessage(
+                    $user->telegram_id,
+                    $text,
+                    idempotencyKey: "release-event-{$event->id}-user-{$user->id}",
+                    disableNotification: $event->notification_mode === ReleaseNotificationMode::Silent,
+                    replyToMessageId: $replyToMessageId,
+                );
+            } catch (\Throwable $exception) {
+                if (! $this->isUnavailableTelegramChat($exception)) {
+                    throw $exception;
+                }
+
+                $this->markDeliveryFailed($delivery, $exception);
+
+                continue;
+            }
             if ($messageId === null) {
                 throw new RuntimeException('Telegram did not return a message ID for the explanation delivery.');
             }
@@ -209,12 +229,22 @@ final readonly class DeliverReleaseEvent
                 continue;
             }
 
-            $firstMessageId = $this->telegram->sendMessage(
-                $user->telegram_id,
-                $catalogMessage,
-                $catalogKeyboard,
-                "release-catalog-{$event->id}-user-{$user->id}",
-            );
+            try {
+                $firstMessageId = $this->telegram->sendMessage(
+                    $user->telegram_id,
+                    $catalogMessage,
+                    $catalogKeyboard,
+                    "release-catalog-{$event->id}-user-{$user->id}",
+                );
+            } catch (\Throwable $exception) {
+                if (! $this->isUnavailableTelegramChat($exception)) {
+                    throw $exception;
+                }
+
+                $this->markDeliveryFailed($delivery, $exception);
+
+                continue;
+            }
             if ($firstMessageId === null) {
                 throw new RuntimeException('Telegram did not return a message ID for the catalog delivery.');
             }
@@ -245,6 +275,25 @@ final readonly class DeliverReleaseEvent
             'release_event_id' => $event->id,
             'user_id' => $userId,
         ]);
+    }
+
+    private function markDeliveryFailed(ReleaseDelivery $delivery, \Throwable $exception): void
+    {
+        $delivery->update([
+            'status' => ReleaseDeliveryStatus::Failed,
+            'failed_at' => now(),
+            'failure_reason' => $exception->getMessage(),
+        ]);
+    }
+
+    private function isUnavailableTelegramChat(\Throwable $exception): bool
+    {
+        $message = mb_strtolower($exception->getMessage());
+
+        return str_contains($message, 'status code 403')
+            && (str_contains($message, 'bot was blocked by the user')
+                || str_contains($message, 'user is deactivated')
+                || str_contains($message, 'chat not found'));
     }
 
     private function artworkMessageIdFor(ReleaseEvent $event, int $userId): ?int
